@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="This-That peer-to-peer communication">
+	<meta name="author" content="max1220">
+	<link rel="icon" type="image/x-icon" href="this_that_favicon.ico">
+	<title>Contacts</title>
+	<link rel="stylesheet" href="window_client.css">
+	<style>
+		table {
+			flex-grow: 1;
+			width: 100%;
+		}
+		table thead tr td {
+			position: sticky;
+			top: 0;
+			font-weight: bold;
+			background-color: #ccc;
+		}
+		table tbody tr.selected {
+			background-color: #aaf;
+		}
+	</style>
+</head>
+<body>
+	<nav>
+		<button onclick="add_contact()">Add concact...</button>
+		<button onclick="open_contact()">Open</button>
+		<button onclick="open_chat()">Chat</button>
+		<button onclick="open_call()">Call</button>
+	</nav>
+	<main>
+		<table id="contacts_table">
+			<thead>
+				<tr>
+					<td>Name</td>
+					<td>ID</td>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>Loading, please wait...</td>
+					<td></td>
+				</tr>
+			</tbody>
+		</table>
+	</main>
+
+	<script src="/window_manager_library/WindowClient.js"></script>
+	<script src="contacts_list.js"></script>
+	<script>
+		// get control over this window
+		let wm_client = new WindowClient(window.parent)
+		wm_client.register_message_handler()
+
+		function add_contact() {
+			wm_client.add_window("add_contact.html", {})
+		}
+		function open_contact() {
+			if (!selected_contact) { return; }
+			wm_client.add_window("contact.html", { peer_id: selected_contact.peer_id })
+		}
+		function open_chat() {
+			if (!selected_contact) { return; }
+			wm_client.add_window("chat.html", { peer_id: selected_contact.peer_id })
+		}
+		function open_call() {
+			if (!selected_contact) { return; }
+			wm_client.add_window("call_outgoing.html", { peer_id: selected_contact.peer_id })
+		}
+
+		// update the contacts table
+		function update_contacts_list() {
+			let contacts_table = document.querySelector("#contacts_table tbody")
+			// remove old rows
+			contacts_table.querySelectorAll("tbody tr").forEach(e => e.remove())
+			// add new rows
+			let contacts_list_keys = contacts_list.keys()
+			contacts_list_keys.sort()
+			for (let i=0; i<contacts_list_keys.length; i++) {
+				let contact = contacts_list[contacts_list_keys[i]]
+				let tr = contacts_table.insertRow()
+				tr.insertCell().appendChild(document.createTextNode(contact.name))
+				tr.insertCell().appendChild(document.createTextNode(contact.peer_id))
+				tr.onclick = () => {
+					console.log("selected", contact)
+					document.querySelectorAll("tr.selected").forEach(e => e.classList.remove("selected"))
+					tr.classList.add("selected")
+					selected_contact = contact 
+				}
+				tr.ondblclick = () => {
+					tr.onclick()
+					open_contact()
+				}
+			}
+		}
+		contacts_list_update_cb = update_contacts_list
+
+		update_contacts_list()
+	</script>
+</body>
+</html>

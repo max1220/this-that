@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="icon" type="image/x-icon" href="this_that_favicon.ico">
+		<title>Chat</title>
+		<link rel="stylesheet" href="window_client.css">
+		<style>
+			main {
+				overflow: auto;
+			}
+			#chat_text {
+				text-wrap: wrap;
+				user-select: all;
+			}
+			#message_input {
+				flex-grow: 1;
+				min-width: 75px;
+			}
+			.username {
+				font-weight: bold;
+			}
+		</style>
+	</head>
+	<body data-preferred-window-width="350" data-preferred-window-height="400">
+		<main>
+			<pre id="chat_text">(chat begin)
+</pre>
+		</main>
+		<nav>
+			<span>Message:</span>
+			<input type="text" id="message_input" onkeyup="if(event.key == 'Enter') { send_message(); }">
+			<button id="send_message_btn" onclick="send_message()">Send</button>
+		</nav>
+
+		<script src="/window_manager_library/WindowClient.js"></script>
+		<script src="contacts_list.js"></script>
+		<script>
+			// get control over this window
+			let wm_client = new WindowClient(window.parent)
+
+			// checked by the top-level window when new messages arrive
+			var RECEIVE_CHAT_MESSAGE_FOR
+
+			let this_that = window.parent.this_that
+
+			let name_for_id = (peer_id) => contacts_list[peer_id] ? contacts_list[peer_id].name : peer_id
+
+			// handle the initial window arguments(init)
+			wm_client.callbacks.window_arg = (arg) => {
+				if (!arg.peer_id) { console.error("Need peer_id!"); return; }
+
+				// add chat history
+				if (window.parent.CHAT_MESSAGES[arg.peer_id]) {
+					window.parent.CHAT_MESSAGES[arg.peer_id].forEach((msg) => add_chat_message(name_for_id(msg.from), msg.message))
+				}
+
+				// export the chat peer this window is using
+				RECEIVE_CHAT_MESSAGE_FOR = arg.peer_id
+			}
+			wm_client.register_message_handler()
+
+			// add the chat message to the chat log
+			function add_chat_message(username_text, message_text) {
+				let username_text_elem = document.createElement("span")
+				username_text_elem.innerText = username_text + ": "
+				username_text_elem.classList.add("username")
+				let message_text_elem = document.createElement("span")
+				message_text_elem.innerText = message_text
+				message_text_elem.classList.add("message")
+				chat_text.appendChild(username_text_elem)
+				chat_text.appendChild(message_text_elem)
+				chat_text.appendChild(document.createTextNode("\n"))
+				chat_text.closest("main").scrollTop = chat_text.closest("main").scrollHeight
+			}
+
+			// called from the top-level window whena chat message is received
+			function RECEIVE_CHAT_MESSAGE(peer_id, message) {
+				add_chat_message(name_for_id(peer_id), message)
+			}
+
+			// send the current chat message
+			function send_message() {
+				let message_input_text = message_input.value
+				if (message_input_text == "") { return; }
+				message_input.value = ""
+				add_chat_message("You", message_input_text)
+				window.parent.this_that.send_chat_message(RECEIVE_CHAT_MESSAGE_FOR, message_input_text)
+			}
+			
+		</script>
+	</body>
+</html>

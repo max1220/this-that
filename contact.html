@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="icon" type="image/x-icon" href="this_that_favicon.ico">
+		<title>View contact</title>
+		<link rel="stylesheet" href="window_client.css">
+		<style>
+
+		</style>
+	</head>
+	<body data-preferred-window-width="250" data-preferred-window-height="120">
+		
+		<main>
+			<label>
+				<span>ID:</span>
+				<input type="text" id="contact_id_input" readonly>
+			</label>
+			<label>
+				<span>Name:</span>
+				<input type="text" id="contact_name_input">
+			</label>
+		</main>
+		<nav>
+			<button onclick="delete_contact()">Delete</button>
+			<button onclick="update_contact()">Update</button>
+			<span class="spacer"></span>
+			<button onclick="open_call()">Call</button>
+			<button onclick="open_chat()">Chat</button>
+		</nav>
+
+		<script src="/window_manager_library/WindowClient.js"></script>
+		<script src="contacts_list.js"></script>
+		<script>
+			// get control over this window
+			let wm_client = new WindowClient(window.parent)
+			wm_client.callbacks.window_arg = (arg) => {
+				let contact = contacts_list[arg.peer_id]
+				if (!contact) { console.error("Contact not found!"); return; }
+				window.title = "Contact - " + contact.name
+				wm_client.set_title("Contact - " + contact.name)
+				window.contact_name_input.value = contact.name
+				window.contact_id_input.value = contact.peer_id
+			}
+			wm_client.register_message_handler()
+
+			function delete_contact() {
+				let contact_peer_id = contact_id_input.value
+				if (contact_peer_id=="") { return; }
+				if (!contacts_list[contact_peer_id]) { return; }
+				delete contacts_list[contact_peer_id]
+				wm_client.close()
+			}
+			function update_contact() {
+				let contact_peer_id = contact_id_input.value
+				let contact_name = contact_name_input.value
+				if (contact_peer_id=="" || contact_name=="") { return; }
+				if (!contacts_list[contact_peer_id]) { return; }
+				contacts_list[contact_peer_id].name = contact_name
+				contacts_list[contact_peer_id] = contacts_list[contact_peer_id]
+				wm_client.close()
+			}
+			function open_call() {
+				let contact_peer_id = contact_id_input.value
+				if (contact_peer_id=="") { return; }
+				wm_client.add_window("call.html", { peer_id: contact_peer_id})
+				wm_client.close()
+			}
+			function open_chat() {
+				let contact_peer_id = contact_id_input.value
+				if (contact_peer_id=="") { return; }
+				wm_client.add_window("chat.html", { peer_id: contact_peer_id})
+				wm_client.close()
+			}
+			
+		</script>
+	</body>
+</html>

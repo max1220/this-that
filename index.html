@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="This-That peer-to-peer communication">
+	<meta name="author" content="max1220">
+	<link rel="icon" type="image/x-icon" href="this_that_favicon.ico">
+	<title>This-That</title>
+	<style>
+		:root {
+			--fg-color: #222;
+			--fg2-color: #444;
+			--bg-color: #fff;
+		}
+		body, html {
+			padding: 0 0;
+			margin: 0 0;
+			background-color: var(--bg-color);
+			color: var(--fg-color);
+			font-family: sans-serif;
+			line-height: 1.75;
+			user-select: none;
+		}
+		main {
+			max-width: 800px;
+			margin: 2em auto;
+		}
+		.lead {
+			font-size: 125%;
+			font-weight: lighter;
+		}
+		.self_peer_id_text {
+			background-color: rgba(127,127,127,0.2);
+			border-radius: 4px;
+			padding: 2px;
+			user-select: all;
+		}
+		.hidden {
+			display: none;
+		}
+
+		/* Make this page automatically switch to darkmode if preferred */
+		@media (prefers-color-scheme: dark) {
+			:root {
+				--fg-color: #fff;
+				--fg2-color: #bbb;
+				--bg-color: #111;
+			}
+		}
+	</style>
+	<link rel="stylesheet" href="/window_manager_library/window_common.css">
+	<link id="window_style" rel="stylesheet" href="/window_manager_library/window_flat.css">
+</head>
+<body>
+	<!-- Container for the moveable windows(managed by javascript) -->
+	<div id="window_container"></div>
+
+	<!-- Regular HTML content -->
+	<main>
+		<h1>This-That</h1>
+		<p class="lead">
+			This-That is a peer-to-peer communication application for the web.
+			<br>
+			<p>Your current ID is: <span class="self_peer_id_text"></span></p>
+			<p>
+				Stream status: <span class="self_stream_status">Not streaming</span>
+			</p>
+			<p>
+				<label>
+					Enable video
+					<input type="checkbox" id="stream_enable_video_checkbox">
+				</label>
+				<button onclick="request_self_stream()" id="start_streaming_btn">Start streaming</button>
+				<video id="self_video_elem" class="hidden"></video>
+			</p>
+			<div class="center">
+				<button class="action-btn" onclick="wm.add_window('contacts.html')">Open Contacts</button>
+			</div>
+		</p>
+		<h2>Minimized windows</h2>
+		<p>Currently minimized windows(click to restore):</p>
+		<div id="minimized_window_list"></div>
+	</main>
+
+	<!-- Window template instanced by Javascript -->
+	<template id="window_template">
+		<div class="win" style="width: 300px; height: 200px;">
+			<nav class="win-titlebar win-drag-handle">
+				<span class="win-icon">🗔</span>
+				<span class="win-title win-drag-handle">Unnamed window</span>
+				<button class="win-btn win-btn-minimize" onclick="wm.minimize_window(this.closest('.win'))" title="Minimize">▁</button>
+				<button class="win-btn win-btn-restore hidden" onclick="wm.restore_window(this.closest('.win'))" title="Restore">🗗</button>
+				<button class="win-btn win-btn-maximize" onclick="wm.maximize_window(this.closest('.win'))" title="Maximize">🗖</button>
+				<button class="win-btn win-btn-close" onclick="wm.remove_window(this.closest('.win'))" title="Close">🞮</button>
+			</nav>
+			<iframe class="win-iframe"></iframe>
+			<div class="win-resize-handle"></div>
+		</div>
+	</template>
+
+	<!-- Setup the window manager using Javascript -->
+	<script src="peerjs.min.js"></script>
+	<script src="/window_manager_library/WindowManager.js"></script>
+	<script src="this_that.js"></script>
+	<script>
+		// create a window manager
+		var wm = new WindowManager(window.window_container, window.window_template, false)
+		wm.register_mouse_events(window)
+		wm.register_message_events()
+		
+		// global this_that instance for accessing peers
+		// also used by some of the iframes
+		var this_that = new ThisThat()
+
+		// chat history. keys are peer ids, values are arrays of chat messages
+		// used by the chat windows to get chat logs
+		var CHAT_MESSAGES = {}
+
+		function request_self_stream() {
+			this_that.request_self_stream(stream_enable_video_checkbox.checked)
+			start_streaming_btn.disabled = true
+		}
+
+		// called when the self peer becomes ready. update self peer text
+		this_that.callbacks.open = (id) => {
+			console.log("self got id:", id)
+			document.querySelectorAll(".self_peer_id_text").forEach((e) => e.innerText = id)
+			wm.broadcast({ event: "self_ready" })
+		}
+
+		// called when the own audio/video stream became available
+		this_that.callbacks.self_audio_stream = (stream) => {
+			console.log("self got audio stream:", stream)
+			document.querySelectorAll(".self_stream_status").forEach((e) => e.innerText = "Streaming audio")
+			wm.broadcast({ event: "self_audio_stream" })
+		}
+		this_that.callbacks.self_video_stream = (stream) => {
+			console.log("self got video stream:", stream)
+			document.querySelectorAll(".self_stream_status").forEach((e) => e.innerText = "Streaming audio & video")
+			wm.broadcast({ event: "self_video_stream" })
+			self_video_elem.srcObject = stream
+			self_video_elem.classList.remove("hidden")
+		}
+
+		// called when any chat message is received
+		this_that.callbacks.chat_message = (msg) => {
+			let from = msg.from.peer
+
+			// add to chat history
+			let messages = CHAT_MESSAGES[from] = CHAT_MESSAGES[from] || []
+			messages.push({ from: from, message: msg.arg })
+
+			// get list of chat windows
+			let chat_wins = wm.window_list.filter((win) => win.iframe.contentWindow.RECEIVE_CHAT_MESSAGE_FOR == from )
+			if (chat_wins.length == 0) {
+				// if no chat windows handle this peer, open a new chat window
+				wm.add_window("chat.html", { peer_id: from })
+			} else {
+				// broadcast message to existing windows
+				wm.broadcast({ event: "chat_message", from: from, message: msg.arg })
+			}
+		}
+
+		// called on new incoming calls
+		this_that.callbacks.call_incoming = (call) => {
+			wm.broadcast({ event: "call_incoming", arg: call.peer })
+			wm.add_window("call_incoming.html", { peer_id: call.peer })
+		}
+		
+		// called on ended calls
+		this_that.callbacks.call_ended = (call) => {
+			wm.broadcast({ event: "call_ended", arg: call.peer })
+		}
+
+
+
+		// update the minimized window list when a window gets minimized/unminimized
+		let minimized_windows = new Map()
+		wm.callbacks.win_minimize = (win) => {
+			let btn = document.createElement("button")
+			btn.innerText = win.title_text.innerText
+			btn.classList.add("btn")
+			btn.onclick = () => wm.unminimize_window(win)
+			minimized_windows.set(win,btn)
+			window.minimized_window_list.appendChild(btn)
+		}
+		wm.callbacks.win_unminimize = (win) => {
+			let btn = minimized_windows.get(win)
+			btn.remove()
+			minimized_windows.delete(win)
+		}
+
+		// hide the HTML content scrollbars if a window is maximized
+		wm.callbacks.wm_has_maximized = (has_maximized) => {
+			if (has_maximized) {
+				document.body.style.overflow = "hidden"
+			} else {
+				document.body.style.overflow = ""
+			}
+		}
+	</script>
+</body>
+</html>

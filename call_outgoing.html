@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="icon" type="image/x-icon" href="this_that_favicon.ico">
+		<title>Outgoing Call</title>
+		<link rel="stylesheet" href="window_client.css">
+		<style>
+		</style>
+	</head>
+	<body data-preferred-window-width="350" data-preferred-window-height="200">
+		<main>
+			<p>
+				Do you want to call <span class="call_remote_name"></span>?
+			</p>
+			<p>
+				<label>
+					<span>Enable own video</span>
+					<input type="checkbox" id="video_ena">
+				</label>
+			</p>
+		</main>
+		<nav>
+			<button onclick="wm_client.close()">Cancel</button>
+			<span class="spacer"></span>
+			<button id="call_btn" onclick="call()">Call</button>
+		</nav>
+
+		<script src="/window_manager_library/WindowClient.js"></script>
+		<script src="contacts_list.js"></script>
+		<script>
+			// get control over this window
+			let wm_client = new WindowClient(window.parent)
+
+			let this_that = window.parent.this_that
+
+			let name_for_id = (peer_id) => contacts_list[peer_id] ? contacts_list[peer_id].name : peer_id
+
+			let peer_id = undefined
+
+			function call() {
+				call_btn.disabled = true
+				call_btn.innerText = "Calling..."
+				this_that.call_peer(peer_id, video_ena.checked, () => {
+					wm_client.add_window("call.html", { peer_id: peer_id })
+					wm_client.close()
+				})
+			}
+
+			// handle the initial window arguments(init)
+			wm_client.callbacks.window_arg = (arg) => {
+				if (!arg.peer_id) { console.error("Need peer_id!"); return; }
+				peer_id = arg.peer_id
+
+				// update call partner name
+				let name = name_for_id(arg.peer_id)
+				document.querySelectorAll(".call_remote_name").forEach((e) => e.innerText = name)
+			}
+			wm_client.register_message_handler()
+		</script>
+	</body>
+</html>

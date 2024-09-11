@@ -1,0 +1,39 @@
+body, html {
+	padding: 0 0;
+	margin: 0 0;
+	font-family: sans-serif;
+	user-select: none;
+	display: flex;
+	flex-direction: column;
+	overflow: auto;
+	position: relative;
+	height: 100%;
+}
+main {
+	flex-grow: 1;
+	margin: 5px 5px;
+	overflow: auto;
+}
+nav {
+	display: flex;
+	flex-direction: row;
+	padding: 2px 2px;
+}
+nav button {
+	margin: 0px 2px;
+}
+nav .spacer {
+	flex-grow: 1;
+}
+label {
+	display: flex;
+	align-items: center;
+}
+label span {
+	min-width: 75px;
+}
+label input {
+	flex-grow: 1;
+	min-width: 75px;
+	margin: 2px 2px;
+}
