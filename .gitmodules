@@ -1,0 +1,3 @@
+[submodule "window_manager_library"]
+	path = window_manager_library
+	url = https://github.com/max1220/window_manager_library
