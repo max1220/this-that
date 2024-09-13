@@ -43,15 +43,20 @@
 			}
 			function unmute_other() {
 				if (!call.remote_stream) { console.log("No remote stream!") }
-				let audio_elem = document.createElement("audio")
-				audio_elem.srcObject = call.remote_stream
-				audio_elem.autoplay = true
-				document.body.appendChild(audio_elem)
+				let stream_elem = document.querySelector("audio")
+				if (!stream_elem) {
+					stream_elem = document.createElement("audio")
+					stream_elem.srcObject = call.remote_stream
+					stream_elem.autoplay = true
+					document.body.appendChild(stream_elem)	
+				} else {
+					stream_elem.muted = false
+				}
 				mute_btn.classList.remove("hidden")
 				unmute_btn.classList.add("hidden")
 			}
 			function mute_other() {
-				document.querySelectorAll("audio").forEach((e) => e.remove())
+				document.querySelector("audio").muted = true
 				mute_btn.classList.add("hidden")
 				unmute_btn.classList.remove("hidden")
 			}

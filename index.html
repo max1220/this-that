@@ -66,14 +66,14 @@
 			<p>
 				Stream status: <span class="self_stream_status">Not streaming</span>
 			</p>
-			<p>
+			<!--p>
 				<label>
 					Enable video
 					<input type="checkbox" id="stream_enable_video_checkbox">
 				</label>
 				<button onclick="request_self_stream()" id="start_streaming_btn">Start streaming</button>
 				<video id="self_video_elem" class="hidden"></video>
-			</p>
+			</p-->
 			<div class="center">
 				<button class="action-btn" onclick="wm.add_window('contacts.html')">Open Contacts</button>
 			</div>
@@ -158,7 +158,7 @@
 				wm.add_window("chat.html", { peer_id: from })
 			} else {
 				// broadcast message to existing windows
-				wm.broadcast({ event: "chat_message", from: from, message: msg.arg })
+				wm.broadcast({ event: "chat_message", arg: { from: from, message: msg.arg } })
 			}
 		}
 

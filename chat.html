@@ -59,6 +59,13 @@
 				// export the chat peer this window is using
 				RECEIVE_CHAT_MESSAGE_FOR = arg.peer_id
 			}
+
+			// handle a notification about an incoming chat message
+			wm_client.callbacks.broadcast_event.chat_message = (msg) => {
+				if (msg.from !== RECEIVE_CHAT_MESSAGE_FOR) { return; }
+				add_chat_message(name_for_id(msg.from), msg.message)
+			}
+
 			wm_client.register_message_handler()
 
 			// add the chat message to the chat log
@@ -73,11 +80,6 @@
 				chat_text.appendChild(message_text_elem)
 				chat_text.appendChild(document.createTextNode("\n"))
 				chat_text.closest("main").scrollTop = chat_text.closest("main").scrollHeight
-			}
-
-			// called from the top-level window whena chat message is received
-			function RECEIVE_CHAT_MESSAGE(peer_id, message) {
-				add_chat_message(name_for_id(peer_id), message)
 			}
 
 			// send the current chat message
