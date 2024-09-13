@@ -64,7 +64,7 @@
 			function open_call() {
 				let contact_peer_id = contact_id_input.value
 				if (contact_peer_id=="") { return; }
-				wm_client.add_window("call.html", { peer_id: contact_peer_id})
+				wm_client.add_window("call_outgoing.html", { peer_id: contact_peer_id})
 				wm_client.close()
 			}
 			function open_chat() {

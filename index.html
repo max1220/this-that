@@ -131,16 +131,16 @@
 
 		// called when the own audio/video stream became available
 		this_that.callbacks.self_audio_stream = (stream) => {
-			console.log("self got audio stream:", stream)
+			//console.log("self got audio stream:", stream)
 			document.querySelectorAll(".self_stream_status").forEach((e) => e.innerText = "Streaming audio")
 			wm.broadcast({ event: "self_audio_stream" })
 		}
 		this_that.callbacks.self_video_stream = (stream) => {
-			console.log("self got video stream:", stream)
+			//console.log("self got video stream:", stream)
 			document.querySelectorAll(".self_stream_status").forEach((e) => e.innerText = "Streaming audio & video")
-			wm.broadcast({ event: "self_video_stream" })
 			self_video_elem.srcObject = stream
 			self_video_elem.classList.remove("hidden")
+			wm.broadcast({ event: "self_video_stream" })
 		}
 
 		// called when any chat message is received
@@ -170,9 +170,14 @@
 		
 		// called on ended calls
 		this_that.callbacks.call_ended = (call) => {
+			console.log("call_ended")
 			wm.broadcast({ event: "call_ended", arg: call.peer })
 		}
 
+		this_that.callbacks.call_stream = (call) => {
+			console.log("call_stream")
+			wm.broadcast({ event: "call_stream", arg: call.peer })
+		}
 
 
 		// update the minimized window list when a window gets minimized/unminimized

@@ -22,7 +22,7 @@
 			</p>
 		</main>
 		<nav>
-			<button onclick="wm_client.close()">Cancel</button>
+			<button onclick="cancel()">Cancel</button>
 			<span class="spacer"></span>
 			<button id="call_btn" onclick="call()">Call</button>
 		</nav>
@@ -38,14 +38,32 @@
 			let name_for_id = (peer_id) => contacts_list[peer_id] ? contacts_list[peer_id].name : peer_id
 
 			let peer_id = undefined
+			let started_call = undefined
+
+			function cancel() {
+				call.close()
+				wm_client.close()
+			}
 
 			function call() {
 				call_btn.disabled = true
 				call_btn.innerText = "Calling..."
-				this_that.call_peer(peer_id, video_ena.checked, () => {
-					wm_client.add_window("call.html", { peer_id: peer_id })
-					wm_client.close()
-				})
+				started_call = this_that.call_peer(peer_id, video_ena.checked)
+			}
+
+			wm_client.callbacks.broadcast_event.call_stream = (call) => {
+				console.log("call got accepted")
+				if (call.peer !== peer_id)
+				
+				wm_client.add_window("call.html", { peer_id: peer_id })
+				wm_client.close()
+			}
+			wm_client.callbacks.broadcast_event.call_ended = (call) => {
+				console.log("call got canceled")
+				if (call.peer !== peer_id)
+				
+				call_btn.disabled = true
+				call_btn.innerText = "Call"
 			}
 
 			// handle the initial window arguments(init)

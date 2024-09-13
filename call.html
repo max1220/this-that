@@ -12,7 +12,7 @@
 			}
 		</style>
 	</head>
-	<body data-preferred-window-width="350" data-preferred-window-height="100">
+	<body data-preferred-window-width="350" data-preferred-window-height="200">
 		<main>
 			<p>
 				Call with <span class="call_remote_name"></span>
@@ -21,8 +21,8 @@
 		<nav>
 			<button onclick="hangup()">Hangup</button>
 			<span class="spacer"></span>
-			<button id="unmute_btn" onclick="unmute()">Unmute</button>
-			<button id="mute_btn" class="hidden" onclick="mute()">Mute</button>
+			<button id="unmute_btn" onclick="unmute_other()">Unmute other</button>
+			<button id="mute_btn" class="hidden" onclick="mute_other()">Mute other</button>
 		</nav>
 
 		<script src="/window_manager_library/WindowClient.js"></script>
@@ -41,7 +41,7 @@
 				call.close()
 				wm_client.close()
 			}
-			function unmute() {
+			function unmute_other() {
 				if (!call.remote_stream) { console.log("No remote stream!") }
 				let audio_elem = document.createElement("audio")
 				audio_elem.srcObject = call.remote_stream
@@ -50,7 +50,7 @@
 				mute_btn.classList.remove("hidden")
 				unmute_btn.classList.add("hidden")
 			}
-			function mute() {
+			function mute_other() {
 				document.querySelectorAll("audio").forEach((e) => e.remove())
 				mute_btn.classList.add("hidden")
 				unmute_btn.classList.remove("hidden")
@@ -62,7 +62,7 @@
 				call = window.parent.this_that.calls.get(arg.peer_id)
 				if (!call) { console.error("Need call!"); return; }
 
-				unmute()
+				unmute_other()
 
 				// update call partner name
 				let name = name_for_id(arg.peer_id)

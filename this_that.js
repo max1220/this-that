@@ -93,41 +93,45 @@ function ThisThat() {
 		}
 	}
 
-	// handle the self peer becoming ready
-	this.self_peer.on("open", (id) => {
-		localStorage.setItem("this_that_last_peer_id", id)
-		trigger_callback("open", id)
-	})
-
-	// handle incoming connections
-	this.self_peer.on("connection", (con) => {
-		this.add_connection(con)
-	})
-
 	// initiate a new call with a peer
-	this.call_peer = (peer_id, video_ena, stream_cb) => {
+	this.call_peer = (peer_id, video_ena) => {
+		console.log("call_peer", peer_id, video_ena)
 		if (this.calls.has(peer_id)) { return this.calls.get(peer_id); }
-		if (!this.self_stream) {
-			this.request_self_stream(video_ena, (stream) => this.add_call(this.self_peer.call(peer_id, stream), stream_cb))
+		if ((video_ena && this.self_video_stream) || this.self_audio_stream) {
+			console.log("call_peer using existing self stream")
+			let call = this.self_peer.call(peer_id, video_ena ? this.self_video_stream : this.self_audio_stream)
+			this.add_call(call)
 		} else {
-			this.add_call(this.self_peer.call(peer_id, stream), stream_cb)
+			console.log("call_peer requesting self stream")
+			this.request_self_stream(video_ena, (stream) => {
+				console.log("call_peer got self stream")
+				let call = this.self_peer.call(peer_id, stream)
+				call.remote_stream = stream
+				this.add_call(call)
+			})
 		}
 	}
 
 	// add a call to the list of active calls
-	this.add_call = (call, stream_cb) => {
+	this.add_call = (call) => {
 		if (this.calls.has(this.calls.peer)) { call.close(); return this.calls.get(call.peer); }
 		this.calls.set(call.peer, call)
+		console.log("add_call", call)
+		if (call.remote_stream) {
+			trigger_callback("call_stream", call)
+		}
 		call.on("stream", (remote_stream) => {
+			console.log("add_call stream", remote_stream)
 			call.remote_stream = remote_stream
-			if (stream_cb) { stream_cb(call); }
 			trigger_callback("call_stream", call)
 		})
 		call.on("close", () => {
+			console.log("add_call close")
 			trigger_callback("call_ended", call)
 			this.calls.delete(call.peer)
 		})
 		call.on("error", () => {
+			console.log("add_call error")
 			trigger_callback("call_ended", call)
 			this.calls.delete(call.peer)
 		})
@@ -147,9 +151,21 @@ function ThisThat() {
 		}
 	}
 
+	// handle the self peer becoming ready
+	this.self_peer.on("open", (id) => {
+		localStorage.setItem("this_that_last_peer_id", id)
+		trigger_callback("open", id)
+	})
+
 	// handle incoming calls
 	this.self_peer.on("call", (call) => {
 		this.add_call(call)
 		trigger_callback("call_incoming", call)
 	})
+
+	// handle incoming connections
+	this.self_peer.on("connection", (con) => {
+		this.add_connection(con)
+	})
+
 }
