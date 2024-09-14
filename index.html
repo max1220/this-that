@@ -15,7 +15,6 @@
 			--bg-color: #fff;
 		}
 		body, html {
-			color-scheme: light dark;
 			padding: 0 0;
 			margin: 0 0;
 			background-color: var(--bg-color);
@@ -33,9 +32,6 @@
 			border-radius: 4px;
 			padding: 2px;
 			user-select: text;
-		}
-		.hidden {
-			display: none;
 		}
 
 		/* Make this page automatically switch to darkmode if preferred */
@@ -143,6 +139,14 @@
 		stream_screen_checkbox.checked = false
 		muted_checkbox.checked = false
 		mute_self_btn.disabled = true
+
+		// handle invite URLs
+		document.location.search.split("&").forEach((e) => {
+			let kv = e.split("=").map(decodeURIComponent)
+			if (kv[0] == "invite_from") {
+				wm.add_window("profile.html", { peer_id: kv[1] })
+			}
+		})
 
 		// global this_that instance for accessing peers
 		// also used by some of the iframes

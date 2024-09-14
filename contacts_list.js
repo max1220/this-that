@@ -44,7 +44,7 @@ let contacts_list = (function () {
 		}
 	})
 	let contacts_list_obj = {
-		keys: () => { return Object.keys(contacts_list_data) }
+		keys: () => { return Object.keys(contacts_list_data) },
 	}
 	return new Proxy(contacts_list_obj, contacts_list_handler)
 })()

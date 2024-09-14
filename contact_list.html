@@ -27,10 +27,11 @@
 </head>
 <body data-preferred-window-width="450" data-preferred-window-height="250">
 	<nav class="nav">
-		<button class="btn-small" onclick="add_contact()">Add concact...</button>
-		<button class="btn-small" onclick="open_contact()">Edit...</button>
-		<button class="btn-small" onclick="open_chat()">Chat...</button>
-		<button class="btn-small" onclick="open_call()">Call...</button>
+		<button class="btn-small" onclick="add_contact()">Add concact</button>
+		<button class="btn-small" onclick="open_contact()">Edit contact</button>
+		<button class="btn-small" onclick="open_profile()">View profile</button>
+		<button class="btn-small" onclick="open_chat()">Chat</button>
+		<button class="btn-small" onclick="open_call()">Call</button>
 	</nav>
 	<main>
 		<table id="contacts_table">
@@ -58,6 +59,9 @@
 
 		function add_contact() {
 			wm_client.add_window("contact_add.html", {})
+		}
+		function open_profile() {
+			wm_client.add_window("profile.html", { peer_id: selected_contact.peer_id })
 		}
 		function open_contact() {
 			if (!selected_contact) { return; }

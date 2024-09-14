@@ -22,10 +22,13 @@ function ThisThat() {
 
 	// handle data from a connection
 	this.handle_data = (con, data) => {
-		if (data.command == "identify") {
-			con.identity = data.arg
-			trigger_callback("identify", { from: con, arg: data.arg} )
+		if (trigger_callback("connection_data", { con: con, data: data })) {
+			// callback handled data
+		} else if (data.command == "profile_update") {
+			// update the profile associated with this peer
+			con.profile = data.arg
 		} else if (data.command == "chat_message") {
+			// handle chat message
 			con.chat_history.push(data.arg)
 			trigger_callback("chat_message", { from: con, arg: data.arg})
 		} else {

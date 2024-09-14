@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="icon" type="image/x-icon" href="this_that_favicon.ico">
+		<title>Profile</title>
+		<link rel="stylesheet" href="window.css">
+		<link rel="stylesheet" href="common.css">
+		<style>
+			main {
+				overflow: auto;
+			}
+			.profile_name , .profile_status , .contact_status {
+				font-weight: bold;
+			}
+		</style>
+	</head>
+	<body data-preferred-window-width="350" data-preferred-window-height="400">
+		<main>
+			<h1 class="title_text"></h1>
+			<p>
+				Online status: <span class="profile_status">Please wait</span><br>
+				Contact status: <span class="contact_status">Not in contact list</span>
+			</p>
+			<p>
+				<button class="btn-small hidden" id="edit_contact_btn">Edit contact</button>
+				<button class="btn-small" id="add_contact_btn">Add contact</button>
+			</p>
+			<div id="profile_content"></div>
+		</main>
+
+		<script src="window_manager_library/WindowClient.js"></script>
+		<script src="contacts_list.js"></script>
+		<script src="DOMPurify/dist/purify.min.js"></script>
+		<script>
+			// get control over this window
+			let wm_client = new WindowClient(window.parent)
+
+			let this_that = window.parent.this_that
+
+			let name_for_id = (peer_id) => contacts_list[peer_id] ? contacts_list[peer_id].name : peer_id
+
+			// handle the initial window arguments(init)
+			wm_client.callbacks.window_arg = (arg) => {
+				if (!arg.peer_id) { console.error("Need peer_id!"); return; }
+
+				let profile = this_that.get_profile(arg.peer_id)
+
+				if (contacts_list[peer_id]) {
+					let title = 
+					document.querySelectorAll(".title_text").forEach((e) => {})
+					document.title = "Profile - " + name_for_id(arg.peer_id)
+					wm_client.set_title(arg.peer_id)
+					document.querySelectorAll(".contact_name").forEach((e) => e.innerText = name_for_id(arg.peer_id) )
+					document.querySelectorAll(".contact_status").forEach((e) => e.innerText = "In contacts list" )
+				}
+
+				// export the chat peer this window is using
+				RECEIVE_CHAT_MESSAGE_FOR = arg.peer_id
+			}
+
+			// handle a notification about an incoming chat message
+			wm_client.callbacks.broadcast_event.chat_message = (msg) => {
+				if (msg.from !== RECEIVE_CHAT_MESSAGE_FOR) { return; }
+				add_chat_message(name_for_id(msg.from), msg.message)
+			}
+
+			wm_client.register_message_handler()
+
+			// open the user profile page
+			function profile() {
+				wm_client.add_window("profile.html", { peer_id: RECEIVE_CHAT_MESSAGE_FOR })
+			}
+
+			// call the chat partner
+			function call() {
+				wm_client.add_window("call_outgoing.html", { peer_id: RECEIVE_CHAT_MESSAGE_FOR })
+			}
+
+			// send a file to the chat
+			function send_file(e) {
+				var file = document.getElementById("send_file_elem").files[0];
+				var reader = new FileReader()
+				reader.onload = function(e) {
+					file_html = `<a data-download-name="${file.name}" data-download-data="${e.target.result}">Download '${file.name}'</a>`
+					add_chat_message("You", file_html)
+					window.parent.this_that.send_chat_message(RECEIVE_CHAT_MESSAGE_FOR, file_html)
+				}
+				reader.readAsDataURL(file);
+			}
+
+			// send an image to the chat
+			function send_image(e) {
+				var file = document.getElementById("send_image_elem").files[0];
+				var reader = new FileReader()
+				reader.onload = function(e) {
+					image_html = `<img src="${e.target.result}" alt="${file.name}">`
+					add_chat_message("You", image_html)
+					window.parent.this_that.send_chat_message(RECEIVE_CHAT_MESSAGE_FOR, image_html)
+				}
+				reader.readAsDataURL(file);
+			}
+
+		</script>
+	</body>
+</html>
