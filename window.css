@@ -14,17 +14,3 @@ main {
 	margin: 5px 5px;
 	overflow: auto;
 }
-nav {
-	display: flex;
-	flex-direction: row;
-	padding: 2px 2px;
-}
-nav button {
-	margin: 0px 2px;
-}
-nav .spacer {
-	flex-grow: 1;
-}
-label {
-	display: block;
-}

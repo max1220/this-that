@@ -7,7 +7,8 @@
 	<meta name="author" content="max1220">
 	<link rel="icon" type="image/x-icon" href="this_that_favicon.ico">
 	<title>Contacts</title>
-	<link rel="stylesheet" href="window_client.css">
+	<link rel="stylesheet" href="window.css">
+	<link rel="stylesheet" href="common.css">
 	<style>
 		table {
 			flex-grow: 1;
@@ -24,12 +25,12 @@
 		}
 	</style>
 </head>
-<body>
-	<nav>
-		<button onclick="add_contact()">Add concact...</button>
-		<button onclick="open_contact()">Edit</button>
-		<button onclick="open_chat()">Chat</button>
-		<button onclick="open_call()">Call</button>
+<body data-preferred-window-width="450" data-preferred-window-height="250">
+	<nav class="nav">
+		<button class="btn-small" onclick="add_contact()">Add concact...</button>
+		<button class="btn-small" onclick="open_contact()">Edit...</button>
+		<button class="btn-small" onclick="open_chat()">Chat...</button>
+		<button class="btn-small" onclick="open_call()">Call...</button>
 	</nav>
 	<main>
 		<table id="contacts_table">
@@ -48,7 +49,7 @@
 		</table>
 	</main>
 
-	<script src="/window_manager_library/WindowClient.js"></script>
+	<script src="window_manager_library/WindowClient.js"></script>
 	<script src="contacts_list.js"></script>
 	<script>
 		// get control over this window
@@ -56,11 +57,11 @@
 		wm_client.register_message_handler()
 
 		function add_contact() {
-			wm_client.add_window("add_contact.html", {})
+			wm_client.add_window("contact_add.html", {})
 		}
 		function open_contact() {
 			if (!selected_contact) { return; }
-			wm_client.add_window("contact.html", { peer_id: selected_contact.peer_id })
+			wm_client.add_window("contact_edit.html", { peer_id: selected_contact.peer_id })
 		}
 		function open_chat() {
 			if (!selected_contact) { return; }
@@ -90,13 +91,14 @@
 					tr.classList.add("selected")
 					selected_contact = contact 
 				}
+				if (i==0) { tr.onclick(); }
 				tr.ondblclick = () => {
 					tr.onclick()
-					open_contact()
+					open_chat()
 				}
 			}
+			let first_contact = contacts_list[contacts_list_keys[1]]
 		}
-		contacts_list_update_cb = update_contacts_list
 
 		update_contacts_list()
 	</script>

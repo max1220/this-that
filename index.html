@@ -7,6 +7,7 @@
 	<meta name="author" content="max1220">
 	<link rel="icon" type="image/x-icon" href="this_that_favicon.ico">
 	<title>This-That</title>
+	<link rel="stylesheet" href="common.css">
 	<style>
 		:root {
 			--fg-color: #222;
@@ -26,58 +27,12 @@
 			max-width: 800px;
 			margin: 2em auto;
 		}
-		.lead {
-			font-size: 125%;
-			font-weight: lighter;
-		}
 		.self_peer_id_text {
 			background-color: rgba(127,127,127,0.2);
 			border-radius: 4px;
 			padding: 2px;
 			user-select: text;
 		}
-		label {
-			display: block;
-		}
-
-		#self_video_elem {
-			width: 320px;
-		}
-		.center {
-			margin-left: auto;
-			margin-right: auto;
-			width: fit-content;
-		}
-
-		.lead-btn {
-			font-weight: lighter;
-			font-size: 20pt;
-			padding: 15px;
-			margin: 15px;
-			border: 2px solid #888;
-			color: var(--fg-color);
-			border-radius: 8px;
-			background-color: rgba(127,127,127,0.1);
-			cursor: pointer;
-		}
-		.lead-btn:hover { background-color: rgba(127,127,127,0.2); }
-		.lead-btn:active { background-color: rgba(127,127,127,0.3); }
-
-		.btn {
-			font-weight: lighter;
-			font-size: 14pt;
-			padding: 5px;
-			margin: 5px;
-			border: 1px solid #888;
-			color: var(--fg-color);
-			border-radius: 4px;
-			background-color: rgba(127,127,127,0.1);
-			cursor: pointer;
-		}
-		.btn:hover { background-color: rgba(127,127,127,0.2); }
-		.btn:active { background-color: rgba(127,127,127,0.3); }
-		.btn:disabled { cursor: not-allowed; background-color: rgba(0,0,0,0) }
-
 		.hidden {
 			display: none;
 		}
@@ -91,8 +46,8 @@
 			}
 		}
 	</style>
-	<link rel="stylesheet" href="/window_manager_library/window_common.css">
-	<link id="window_style" rel="stylesheet" href="/window_manager_library/window_flat.css">
+	<link rel="stylesheet" href="window_manager_library/window_common.css">
+	<link id="window_style" rel="stylesheet" href="window_manager_library/window_flat.css">
 </head>
 <body>
 	<!-- Container for the moveable windows(managed by javascript) -->
@@ -105,7 +60,7 @@
 			This-That is a peer-to-peer communication application for the web.
 		</p>
 		<div class="center">
-			<button class="lead-btn" onclick="wm.add_window('contacts.html')">Open Contacts</button>
+			<button class="btn-lead" onclick="wm.add_window('contact_list.html')">Open Contacts</button>
 		</div>
 		<p>
 			Your current ID is: <span class="self_peer_id_text"></span>
@@ -146,7 +101,7 @@
 
 	<!-- Window template instanced by Javascript -->
 	<template id="window_template">
-		<div class="win" style="width: 300px; height: 200px;">
+		<div class="win" style="width: 350px; height: 200px;">
 			<nav class="win-titlebar win-drag-handle">
 				<span class="win-icon">🗔</span>
 				<span class="win-title win-drag-handle">Unnamed window</span>
@@ -169,6 +124,10 @@
 		var wm = new WindowManager(window.window_container, window.window_template, false)
 		wm.register_mouse_events(window)
 		wm.register_message_events()
+		wm.resize_size_limits = {
+			min_w: 200,
+			min_h: 100,
+		}
 
 		stream_audio_checkbox.checked = false
 		stream_video_checkbox.checked = false

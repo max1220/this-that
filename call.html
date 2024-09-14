@@ -5,7 +5,8 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<link rel="icon" type="image/x-icon" href="this_that_favicon.ico">
 		<title>Call</title>
-		<link rel="stylesheet" href="window_client.css">
+		<link rel="stylesheet" href="window.css">
+		<link rel="stylesheet" href="common.css">
 		<style>
 			video {
 				width: 100%;
@@ -24,7 +25,7 @@
 				
 			</div>
 		</main>
-		<nav>
+		<nav class="nav">
 			<button onclick="hangup()">Hangup</button>
 			<span class="spacer"></span>
 			<button id="unmute_self_btn" class="hidden" onclick="unmute_self()">Unmute self</button>
@@ -33,7 +34,7 @@
 			<button id="mute_other_btn" onclick="mute_other()">Mute other</button>
 		</nav>
 
-		<script src="/window_manager_library/WindowClient.js"></script>
+		<script src="window_manager_library/WindowClient.js"></script>
 		<script src="contacts_list.js"></script>
 		<script>
 			// get control over this window
@@ -97,6 +98,8 @@
 				console.log("call ended")
 				call = undefined
 				status_text.innerText = "(Call ended)"
+				let stream_elem = document.querySelector(".remote_stream")
+				if (stream_elem) { stream_elem.remove(); }
 			}
 
 			wm_client.set_confirm("true")

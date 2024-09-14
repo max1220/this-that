@@ -5,14 +5,18 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<link rel="icon" type="image/x-icon" href="this_that_favicon.ico">
 		<title>Chat</title>
-		<link rel="stylesheet" href="window_client.css">
+		<link rel="stylesheet" href="window.css">
+		<link rel="stylesheet" href="common.css">
 		<style>
 			main {
 				overflow: auto;
 			}
 			#chat_text {
 				text-wrap: wrap;
-				user-select: all;
+				user-select: text;
+			}
+			#chat_text img {
+				max-width: 100%;
 			}
 			#message_input {
 				flex-grow: 1;
@@ -21,21 +25,36 @@
 			.username {
 				font-weight: bold;
 			}
+			input[type=file] {
+				display: none;
+			}
 		</style>
 	</head>
 	<body data-preferred-window-width="350" data-preferred-window-height="400">
+		<nav class="nav">
+			<button class="btn-small" onclick="call()">Call...</button>
+			<label class="btn-small">
+				<span>Send image...</span>
+				<input type="file" id="send_image_elem" onchange="send_image(event)">
+			</label>
+			<label class="btn-small">
+				<span>Send file...</span>
+				<input type="file" id="send_file_elem" onchange="send_file(event)">
+			</label>
+		</nav>
 		<main>
 			<pre id="chat_text">(chat begin)
 </pre>
 		</main>
-		<nav>
+		<nav class="nav">
 			<span>Message:</span>
 			<input type="text" id="message_input" onkeyup="if(event.key == 'Enter') { send_message(); }">
-			<button id="send_message_btn" onclick="send_message()">Send</button>
+			<button class="btn-small" id="send_message_btn" onclick="send_message()">Send</button>
 		</nav>
 
-		<script src="/window_manager_library/WindowClient.js"></script>
+		<script src="window_manager_library/WindowClient.js"></script>
 		<script src="contacts_list.js"></script>
+		<script src="DOMPurify/dist/purify.min.js"></script>
 		<script>
 			// get control over this window
 			let wm_client = new WindowClient(window.parent)
@@ -56,6 +75,9 @@
 					window.parent.CHAT_MESSAGES[arg.peer_id].forEach((msg) => add_chat_message(name_for_id(msg.from), msg.message))
 				}
 
+				document.title = "Chat - " + name_for_id(arg.peer_id)
+				wm_client.set_title(document.title)
+
 				// export the chat peer this window is using
 				RECEIVE_CHAT_MESSAGE_FOR = arg.peer_id
 			}
@@ -74,23 +96,61 @@
 				username_text_elem.innerText = username_text + ": "
 				username_text_elem.classList.add("username")
 				let message_text_elem = document.createElement("span")
-				message_text_elem.innerText = message_text
+				console.log("original text:", message_text)
+				message_text_elem.innerHTML = DOMPurify.sanitize(message_text, {
+					ALLOWED_TAGS: [ "a", "b", "i", "p", "q", "s", "u", "hr", "span", "img", "ul", "li", "ol", "dt", "dd", "details" ],
+					ALLOWED_ATTR: [ "style", "src", "alt", "href" ]
+				})
+				console.log("new text:", message_text_elem.innerHTML)
 				message_text_elem.classList.add("message")
 				chat_text.appendChild(username_text_elem)
 				chat_text.appendChild(message_text_elem)
 				chat_text.appendChild(document.createTextNode("\n"))
 				chat_text.closest("main").scrollTop = chat_text.closest("main").scrollHeight
+				document.querySelectorAll("a[data-download-name]").forEach((e) => {
+					e.download = e.getAttribute("data-download-name")
+					e.href = e.getAttribute("data-download-data")
+				})
 			}
 
 			// send the current chat message
-			function send_message() {
+			function send_message(e) {
 				let message_input_text = message_input.value
 				if (message_input_text == "") { return; }
 				message_input.value = ""
 				add_chat_message("You", message_input_text)
 				window.parent.this_that.send_chat_message(RECEIVE_CHAT_MESSAGE_FOR, message_input_text)
 			}
-			
+
+			// call the chat partner
+			function call() {
+				wm_client.add_window("call_outgoing.html", { peer_id: RECEIVE_CHAT_MESSAGE_FOR })
+			}
+
+			// send a file to the chat
+			function send_file(e) {
+				var file = document.getElementById("send_file_elem").files[0];
+				var reader = new FileReader()
+				reader.onload = function(e) {
+					file_html = `<a data-download-name="${file.name}" data-download-data="${e.target.result}">Download '${file.name}'</a>`
+					add_chat_message("You", file_html)
+					window.parent.this_that.send_chat_message(RECEIVE_CHAT_MESSAGE_FOR, file_html)
+				}
+				reader.readAsDataURL(file);
+			}
+
+			// send an image to the chat
+			function send_image(e) {
+				var file = document.getElementById("send_image_elem").files[0];
+				var reader = new FileReader()
+				reader.onload = function(e) {
+					image_html = `<img src="${e.target.result}" alt="${file.name}">`
+					add_chat_message("You", image_html)
+					window.parent.this_that.send_chat_message(RECEIVE_CHAT_MESSAGE_FOR, image_html)
+				}
+				reader.readAsDataURL(file);
+			}
+
 		</script>
 	</body>
 </html>

@@ -1,3 +1,6 @@
 [submodule "window_manager_library"]
 	path = window_manager_library
 	url = https://github.com/max1220/window_manager_library
+[submodule "DOMPurify"]
+	path = DOMPurify
+	url = https://github.com/cure53/DOMPurify

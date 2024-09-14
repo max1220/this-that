@@ -5,7 +5,8 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<link rel="icon" type="image/x-icon" href="this_that_favicon.ico">
 		<title>Outgoing Call</title>
-		<link rel="stylesheet" href="window_client.css">
+		<link rel="stylesheet" href="window.css">
+		<link rel="stylesheet" href="common.css">
 		<style>
 		</style>
 	</head>
@@ -29,13 +30,13 @@
 				</label>
 			</p>
 		</main>
-		<nav>
-			<button onclick="cancel()">Cancel</button>
+		<nav class="nav">
+			<button class="btn-small" onclick="cancel()">Cancel</button>
 			<span class="spacer"></span>
-			<button id="call_btn" onclick="call()">Call</button>
+			<button class="btn-small" id="call_btn" onclick="call()">Call</button>
 		</nav>
 
-		<script src="/window_manager_library/WindowClient.js"></script>
+		<script src="window_manager_library/WindowClient.js"></script>
 		<script src="contacts_list.js"></script>
 		<script>
 			// get control over this window
