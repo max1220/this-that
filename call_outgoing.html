@@ -16,8 +16,16 @@
 			</p>
 			<p>
 				<label>
-					<span>Enable own video</span>
-					<input type="checkbox" id="video_ena">
+					<input type="radio" id="audio_only_radio" name="respond_option">
+					<span>Call audio-only</span>
+				</label>
+				<label>
+					<input type="radio" id="video_radio" name="respond_option">
+					<span>Call with video</span>
+				</label>
+				<label>
+					<input type="radio" id="screen_radio" name="respond_option">
+					<span>Call with screen sharing</span>
 				</label>
 			</p>
 		</main>
@@ -38,30 +46,41 @@
 			let name_for_id = (peer_id) => contacts_list[peer_id] ? contacts_list[peer_id].name : peer_id
 
 			let peer_id = undefined
-			let started_call = undefined
 
+			// cancel button was pressed
 			function cancel() {
 				call.close()
 				wm_client.close()
 			}
 
+			// call button was pressed
 			function call() {
+				let stream_type = "audio"
+				if (video_radio.checked) {
+					stream_type = "video"
+				} else if (screen_radio.checked) {
+					stream_type = "screen"
+				}
+				console.log("Requesting call with: ", stream_type, peer_id)
+				this_that.call_peer(peer_id, stream_type)
+				call_btn.innerText = "Requesting self stream..."
 				call_btn.disabled = true
-				call_btn.innerText = "Calling..."
-				started_call = this_that.call_peer(peer_id, video_ena.checked)
 			}
 
-			wm_client.callbacks.broadcast_event.call_stream = (call) => {
-				console.log("call got accepted")
-				if (call.peer !== peer_id)
-				
+			wm_client.callbacks.broadcast_event.call_add = (call_peer_id) => {
+				if (call_peer_id !== peer_id)
+				console.log("Starting call with: ", peer_id)
+				call_btn.innerText = "Calling..."
+			}
+			wm_client.callbacks.broadcast_event.call_answer = (call_peer_id) => {
+				if (call_peer_id !== peer_id)
+				console.log("call got answered! closing...")
 				wm_client.add_window("call.html", { peer_id: peer_id })
 				wm_client.close()
 			}
-			wm_client.callbacks.broadcast_event.call_ended = (call) => {
+			wm_client.callbacks.broadcast_event.call_ended = (call_peer_id) => {
+				if (call_peer_id !== peer_id)
 				console.log("call got canceled")
-				if (call.peer !== peer_id)
-				
 				call_btn.disabled = true
 				call_btn.innerText = "Call"
 			}
@@ -70,9 +89,10 @@
 			wm_client.callbacks.window_arg = (arg) => {
 				if (!arg.peer_id) { console.error("Need peer_id!"); return; }
 				peer_id = arg.peer_id
-
+				console.log("Caller ID:", peer_id)
 				// update call partner name
 				let name = name_for_id(arg.peer_id)
+				console.log("Caller name or ID:", name)
 				document.querySelectorAll(".call_remote_name").forEach((e) => e.innerText = name)
 			}
 			wm_client.register_message_handler()

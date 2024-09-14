@@ -7,6 +7,9 @@
 		<title>Call</title>
 		<link rel="stylesheet" href="window_client.css">
 		<style>
+			video {
+				width: 100%;
+			}
 			.hidden {
 				display: none;
 			}
@@ -14,15 +17,20 @@
 	</head>
 	<body data-preferred-window-width="350" data-preferred-window-height="200">
 		<main>
-			<p>
+			<p id="status_text">
 				Call with <span class="call_remote_name"></span>
 			</p>
+			<div id="stream_container">
+				
+			</div>
 		</main>
 		<nav>
 			<button onclick="hangup()">Hangup</button>
 			<span class="spacer"></span>
-			<button id="unmute_btn" onclick="unmute_other()">Unmute other</button>
-			<button id="mute_btn" class="hidden" onclick="mute_other()">Mute other</button>
+			<button id="unmute_self_btn" class="hidden" onclick="unmute_self()">Unmute self</button>
+			<button id="mute_self_btn" onclick="mute_self()">Mute self</button>
+			<button id="unmute_other_btn" class="hidden" onclick="unmute_other()">Unmute other</button>
+			<button id="mute_other_btn" onclick="mute_other()">Mute other</button>
 		</nav>
 
 		<script src="/window_manager_library/WindowClient.js"></script>
@@ -39,38 +47,74 @@
 
 			function hangup() {
 				call.close()
-				wm_client.close()
+				//wm_client.close()
+			}
+			function mute_self() {
+				mute_self_btn.classList.add("hidden")
+				unmute_self_btn.classList.remove("hidden")
+				this_that.mute_self()
+			}
+			function unmute_self() {
+				mute_self_btn.classList.remove("hidden")
+				unmute_self_btn.classList.add("hidden")
+				this_that.unmute_self()
+			}
+			function create_stream_elem() {
+				if (!call.remote_stream) { console.log("No remote stream!"); return; }
+				let stream_elem = document.querySelector(".remote_stream")
+				if (stream_elem) { stream_elem.remove(); }
+				if (call.remote_stream.getVideoTracks().length > 0) {
+					stream_elem = document.createElement("video")
+				} else {
+					stream_elem = document.createElement("audio")
+				}
+				stream_elem.classList.add("remote_stream")
+				stream_elem.srcObject = call.remote_stream
+				stream_elem.autoplay = true
+				stream_elem.controls = true
+				stream_container.appendChild(stream_elem)
+
 			}
 			function unmute_other() {
-				if (!call.remote_stream) { console.log("No remote stream!") }
-				let stream_elem = document.querySelector("audio")
-				if (!stream_elem) {
-					stream_elem = document.createElement("audio")
-					stream_elem.srcObject = call.remote_stream
-					stream_elem.autoplay = true
-					document.body.appendChild(stream_elem)	
-				} else {
-					stream_elem.muted = false
-				}
-				mute_btn.classList.remove("hidden")
-				unmute_btn.classList.add("hidden")
+				let stream_elem = document.querySelector(".remote_stream")
+				if (!stream_elem) { return; }
+				stream_elem.muted = false
+				mute_other_btn.classList.remove("hidden")
+				unmute_other_btn.classList.add("hidden")
 			}
 			function mute_other() {
 				document.querySelector("audio").muted = true
-				mute_btn.classList.add("hidden")
-				unmute_btn.classList.remove("hidden")
+				mute_other_btn.classList.add("hidden")
+				unmute_other_btn.classList.remove("hidden")
 			}
 
 			// handle the initial window arguments(init)
+			wm_client.callbacks.broadcast_event.call_stream = () => {
+				console.log("call.html broadcast_event.call_stream")
+				create_stream_elem()
+			}
+			wm_client.callbacks.broadcast_event.call_ended = (call_peer_id) => {
+				console.log("call ended")
+				call = undefined
+				status_text.innerText = "(Call ended)"
+			}
+
+			wm_client.set_confirm("true")
+			wm_client.callbacks.close_confirm = () => {
+				// prevent close if call still running
+				if (call) { return true; }
+			}
 			wm_client.callbacks.window_arg = (arg) => {
 				if (!arg.peer_id) { console.error("Need peer_id!"); return; }
 				call = window.parent.this_that.calls.get(arg.peer_id)
 				if (!call) { console.error("Need call!"); return; }
 
-				unmute_other()
+				create_stream_elem()
 
 				// update call partner name
 				let name = name_for_id(arg.peer_id)
+				document.title = "Call: " + name
+				wm_client.set_title("Call: " + name)
 				document.querySelectorAll(".call_remote_name").forEach((e) => e.innerText = name)
 			}
 			wm_client.register_message_handler()

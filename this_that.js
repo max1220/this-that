@@ -1,37 +1,18 @@
+"use strict";
+
 function ThisThat() {
 	let last_id = localStorage.getItem("this_that_last_peer_id")
 	this.self_peer = new Peer(last_id)
 	this.connections = new Map()
 	this.calls = new Map()
 	this.self_identity = {}
-	this.self_audio_stream = undefined
-	this.self_video_stream = undefined
+	this.self_stream = {}
 	this.callbacks = {}
 	
 	// trigger a callback function if present
 	let trigger_callback = (name, arg) => {
 		if (!this.callbacks[name]) { return; }
 		return this.callbacks[name](arg)
-	}
-
-	// get own audio/video stream
-	this.request_self_stream = (video_ena, stream_cb) => {
-		if (!this.self_audio_stream) {
-			navigator.mediaDevices.getUserMedia({audio: true}).then((audio_stream) => {
-				this.self_audio_stream = audio_stream
-				if (!video_ena) {
-					if (stream_cb) { stream_cb(audio_stream); }
-					trigger_callback("self_audio_stream", audio_stream)
-				}
-			})
-		}
-		if (!this.self_video_stream && video_ena) {
-			navigator.mediaDevices.getUserMedia({video: true, audio: true}).then((video_stream) => {
-				this.self_video_stream = video_stream
-				stream_cb(video_stream)
-				trigger_callback("self_video_stream", video_stream)
-			})
-		}
 	}
 
 	// send own identity to connection
@@ -93,23 +74,44 @@ function ThisThat() {
 		}
 	}
 
-	// initiate a new call with a peer
-	this.call_peer = (peer_id, video_ena) => {
-		console.log("call_peer", peer_id, video_ena)
-		if (this.calls.has(peer_id)) { return this.calls.get(peer_id); }
-		if ((video_ena && this.self_video_stream) || this.self_audio_stream) {
-			console.log("call_peer using existing self stream")
-			let call = this.self_peer.call(peer_id, video_ena ? this.self_video_stream : this.self_audio_stream)
-			this.add_call(call)
-		} else {
-			console.log("call_peer requesting self stream")
-			this.request_self_stream(video_ena, (stream) => {
-				console.log("call_peer got self stream")
-				let call = this.self_peer.call(peer_id, stream)
-				call.remote_stream = stream
-				this.add_call(call)
-			})
+	// request the own audio/video/screen stream
+	this.request_self_stream = (stream_type, stream_cb) => {
+		stream_cb = stream_cb ? stream_cb : () => {}
+		if (this.self_stream[stream_type]) { stream_cb(this.self_stream[stream_type]); }
+		let remove_stream = () => {
+			if (!this.self_stream[stream_type]) { return; }
+			console.log("request_self_stream: remove_stream", stream_type, this.self_stream[stream_type])
+			this.self_stream[stream_type] = undefined
+			trigger_callback("self_stream_removed", { stream_type: stream_type })
 		}
+		let handle_stream = (stream) => {
+			console.log("request_self_stream: got stream", stream_type, stream)
+			this.self_stream[stream_type] = stream
+			stream_cb(stream)
+			// stream.getTracks().forEach((track) => { track.onended = remove_stream; })
+			trigger_callback("self_stream_added", { stream_type: stream_type, stream: stream })
+		}
+		console.log("request_self_stream", stream_type)
+		if (stream_type == "audio") {
+			navigator.mediaDevices.getUserMedia({audio: true}).then(handle_stream) //.catch(remove_stream)
+		} else if (stream_type == "video") {
+			navigator.mediaDevices.getUserMedia({audio: true, video: true}).then(handle_stream).catch(remove_stream)
+		} else if (stream_type == "screen") {
+			navigator.mediaDevices.getDisplayMedia({systemAudio: "include"}).then(handle_stream).catch(remove_stream)
+		} else {
+			console.error("Invalid stream_type:",stream_type)
+		}
+	}
+
+	// initiate a new call with a peer
+	this.call_peer = (peer_id, stream_type) => {
+		if (this.calls.has(peer_id)) { console.warn("Already has a call with peer!"); return; }
+		this.request_self_stream(stream_type, (self_stream) => {
+			console.log("Calling peer using stream:", stream_type, self_stream)
+			let call = this.self_peer.call(peer_id, self_stream)
+			call.self_stream = self_stream
+			this.add_call(call)
+		})
 	}
 
 	// add a call to the list of active calls
@@ -117,38 +119,74 @@ function ThisThat() {
 		if (this.calls.has(this.calls.peer)) { call.close(); return this.calls.get(call.peer); }
 		this.calls.set(call.peer, call)
 		console.log("add_call", call)
-		if (call.remote_stream) {
-			trigger_callback("call_stream", call)
-		}
+
+		// handle an incoming remote stream
 		call.on("stream", (remote_stream) => {
 			console.log("add_call stream", remote_stream)
 			call.remote_stream = remote_stream
+			
+			// call the answer callback, since to receive a remote stream means the call was answered
+			trigger_callback("call_answer", call)
+			window.clearInterval(call.answer_test_interval)
+
+			// call the remote stream available callback
 			trigger_callback("call_stream", call)
 		})
-		call.on("close", () => {
-			console.log("add_call close")
+		
+		// terminate call on error/close
+		let terminate_call = () => {
+			console.log("add_call terminate")
 			trigger_callback("call_ended", call)
 			this.calls.delete(call.peer)
-		})
-		call.on("error", () => {
-			console.log("add_call error")
-			trigger_callback("call_ended", call)
-			this.calls.delete(call.peer)
-		})
+			window.clearInterval(call.answer_test_interval)
+		}
+		call.on("close", terminate_call)
+		call.on("error", terminate_call)
+
+		// hack to provide an answer callback function(why is this necessary, peerjs?)
+		call.answer_test_interval = window.setInterval(() => {
+			if (call.open && !call.was_open) {
+				console.log("call answered listen-only")
+				trigger_callback("call_answer", call)
+				call.was_open = true
+				window.clearInterval(call.answer_test_interval)
+			}
+		}, 333)
+
+		trigger_callback("call_add", call)
 		return call
 	}
 
 	// answer a call
-	this.answer_call = (call, self_audio_ena, self_video_ena) => {
-		if (!self_audio_ena && !self_video_ena) {
+	this.answer_call = (call, stream_type) => {
+		console.log("answer", stream_type, call)
+		if (stream_type == "none") {
 			call.answer()
-		} else {
-			if (this.self_stream) {
-				call.answer(this.self_stream)
-			} else {
-				this.request_self_stream(self_video_ena, () => call.answer(this.self_stream))
-			}
+			return;
 		}
+		this.request_self_stream(stream_type, (self_stream) => {
+			call.answer(self_stream)
+		})
+	}
+
+	// mute own microphone
+	this.mute_self = () => {
+		if (this.muted) { return; }
+		this.muted = true
+		Object.keys(this.self_stream).forEach((e) => {
+			this.self_stream[e].getAudioTracks().forEach((t) => t.enabled = false )
+		})
+		trigger_callback("mute_self")
+	}
+
+	// unmute own microphone
+	this.unmute_self = () => {
+		if (!this.muted) { return; }
+		this.muted = false
+		Object.keys(this.self_stream).forEach((e) => {
+			this.self_stream[e].getAudioTracks().forEach((t) => t.enabled = true )
+		})
+		trigger_callback("unmute_self")
 	}
 
 	// handle the self peer becoming ready

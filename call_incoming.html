@@ -13,13 +13,22 @@
 		<main>
 			<p>
 				Incoming call from <span class="call_remote_name"></span>
+
 				<label>
-					<span>Enable own audio</span>
-					<input type="checkbox" id="audio_ena">
+					<input type="radio" id="listen_only_radio" name="respond_option">
+					<span>Listen only</span>
 				</label>
 				<label>
-					<span>Enable own video</span>
-					<input type="checkbox" id="video_ena">
+					<input type="radio" id="audio_only_radio" name="respond_option">
+					<span>Respond with own audio</span>
+				</label>
+				<label>
+					<input type="radio" id="video_radio" name="respond_option">
+					<span>Respond with own video</span>
+				</label>
+				<label>
+					<input type="radio" id="screen_radio" name="respond_option">
+					<span>Respond with screen sharing</span>
 				</label>
 			</p>
 		</main>
@@ -42,7 +51,15 @@
 			let call = undefined
 
 			function answer() {
-				this_that.answer_call(call, audio_ena.checked, video_ena.checked)
+				let stream_type = "none"
+				if (audio_only_radio.checked) {
+					stream_type = "audio"
+				} else if (video_radio.checked) {
+					stream_type = "video"
+				} else if (screen_radio.checked) {
+					stream_type = "screen"
+				}
+				this_that.answer_call(call, stream_type)
 				wm_client.add_window("call.html", { peer_id: call.peer })
 				wm_client.close()
 			}

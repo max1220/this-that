@@ -34,8 +34,50 @@
 			background-color: rgba(127,127,127,0.2);
 			border-radius: 4px;
 			padding: 2px;
-			user-select: all;
+			user-select: text;
 		}
+		label {
+			display: block;
+		}
+
+		#self_video_elem {
+			width: 320px;
+		}
+		.center {
+			margin-left: auto;
+			margin-right: auto;
+			width: fit-content;
+		}
+
+		.lead-btn {
+			font-weight: lighter;
+			font-size: 20pt;
+			padding: 15px;
+			margin: 15px;
+			border: 2px solid #888;
+			color: var(--fg-color);
+			border-radius: 8px;
+			background-color: rgba(127,127,127,0.1);
+			cursor: pointer;
+		}
+		.lead-btn:hover { background-color: rgba(127,127,127,0.2); }
+		.lead-btn:active { background-color: rgba(127,127,127,0.3); }
+
+		.btn {
+			font-weight: lighter;
+			font-size: 14pt;
+			padding: 5px;
+			margin: 5px;
+			border: 1px solid #888;
+			color: var(--fg-color);
+			border-radius: 4px;
+			background-color: rgba(127,127,127,0.1);
+			cursor: pointer;
+		}
+		.btn:hover { background-color: rgba(127,127,127,0.2); }
+		.btn:active { background-color: rgba(127,127,127,0.3); }
+		.btn:disabled { cursor: not-allowed; background-color: rgba(0,0,0,0) }
+
 		.hidden {
 			display: none;
 		}
@@ -61,25 +103,44 @@
 		<h1>This-That</h1>
 		<p class="lead">
 			This-That is a peer-to-peer communication application for the web.
-			<br>
-			<p>Your current ID is: <span class="self_peer_id_text"></span></p>
-			<p>
-				Stream status: <span class="self_stream_status">Not streaming</span>
-			</p>
-			<p>
-				<label>
-					Enable video
-					<input type="checkbox" id="stream_enable_video_checkbox">
-				</label>
-				<button onclick="request_self_stream()" id="start_streaming_btn">Start streaming</button>
-				<video id="self_video_elem" class="hidden"></video>
-			</p>
-			<div class="center">
-				<button class="action-btn" onclick="wm.add_window('contacts.html')">Open Contacts</button>
-			</div>
 		</p>
+		<div class="center">
+			<button class="lead-btn" onclick="wm.add_window('contacts.html')">Open Contacts</button>
+		</div>
+		<p>
+			Your current ID is: <span class="self_peer_id_text"></span>
+			<label>
+				<span>Notification sounds:</span>
+				<input type="checkbox" id="notification_sounds_ena">
+			</label>
+		</p>
+
+		<h2>Your stream status:</h2>
+		<p>
+			<label>
+				<input type="checkbox" id="stream_audio_checkbox" disabled readonly>
+				<span>Audio</span>
+			</label>
+			<label>
+				<input type="checkbox" id="stream_video_checkbox" disabled readonly>
+				<span>Video</span>
+			</label>
+			<label>
+				<input type="checkbox" id="stream_screen_checkbox" disabled readonly>
+				<span>Screen sharing</span>
+			</label>
+			<label>
+				<input type="checkbox" id="muted_checkbox" disabled readonly>
+				<span>Muted</span>
+			</label>
+			<button id="unmute_self_btn" class="btn hidden" onclick="unmute_self()">Unmute self</button>
+			<button id="mute_self_btn" class="btn" onclick="mute_self()" disabled>Mute self</button>
+		</p>
+
 		<h2>Minimized windows</h2>
-		<p>Currently minimized windows(click to restore):</p>
+		<p>
+			Currently minimized windows(click to restore):
+		</p>
 		<div id="minimized_window_list"></div>
 	</main>
 
@@ -108,7 +169,13 @@
 		var wm = new WindowManager(window.window_container, window.window_template, false)
 		wm.register_mouse_events(window)
 		wm.register_message_events()
-		
+
+		stream_audio_checkbox.checked = false
+		stream_video_checkbox.checked = false
+		stream_screen_checkbox.checked = false
+		muted_checkbox.checked = false
+		mute_self_btn.disabled = true
+
 		// global this_that instance for accessing peers
 		// also used by some of the iframes
 		var this_that = new ThisThat()
@@ -117,9 +184,15 @@
 		// used by the chat windows to get chat logs
 		var CHAT_MESSAGES = {}
 
-		function request_self_stream() {
-			this_that.request_self_stream(stream_enable_video_checkbox.checked)
-			start_streaming_btn.disabled = true
+		function mute_self() {
+			this_that.mute_self()
+		}
+		function unmute_self() {
+			this_that.unmute_self()
+		}
+		function play_notification_sound() {
+			if (!notification_sounds_ena.checked) { return; }
+			new Audio("notification_sound.wav").play()
 		}
 
 		// called when the self peer becomes ready. update self peer text
@@ -129,18 +202,35 @@
 			wm.broadcast({ event: "self_ready" })
 		}
 
-		// called when the own audio/video stream became available
-		this_that.callbacks.self_audio_stream = (stream) => {
-			//console.log("self got audio stream:", stream)
-			document.querySelectorAll(".self_stream_status").forEach((e) => e.innerText = "Streaming audio")
-			wm.broadcast({ event: "self_audio_stream" })
+		// called when the own audio gets muted
+		this_that.callbacks.mute_self = () => {
+			mute_self_btn.classList.add("hidden")
+			unmute_self_btn.classList.remove("hidden")
+			muted_checkbox.checked = true
 		}
-		this_that.callbacks.self_video_stream = (stream) => {
-			//console.log("self got video stream:", stream)
-			document.querySelectorAll(".self_stream_status").forEach((e) => e.innerText = "Streaming audio & video")
-			self_video_elem.srcObject = stream
-			self_video_elem.classList.remove("hidden")
-			wm.broadcast({ event: "self_video_stream" })
+
+		// called when the own audio gets unmuted
+		this_that.callbacks.unmute_self = () => {
+			mute_self_btn.classList.remove("hidden")
+			unmute_self_btn.classList.add("hidden")
+			muted_checkbox.checked = false
+		}
+
+		// called when one of the own audio/video streams becomes unavailable
+		this_that.callbacks.self_stream_removed = (stream_arg) => {
+			console.log("app: self_stream_removed", stream_arg.stream_type)
+			let elem = document.querySelector("#stream_"+stream_arg.stream_type+"_checkbox")
+			elem.checked = false
+			wm.broadcast({ event: "self_stream_removed", arg: { stream_type: stream_type } })
+		}
+
+		// called when one of the own audio/video streams becomes available
+		this_that.callbacks.self_stream_added = (stream_arg) => {
+			console.log("app: self_stream_added", stream_arg.stream_type)
+			mute_self_btn.disabled = false
+			let elem = document.querySelector("#stream_"+stream_arg.stream_type+"_checkbox")
+			elem.checked = true
+			wm.broadcast({ event: "self_stream_added", arg: { stream_type: stream_arg.stream_type } })
 		}
 
 		// called when any chat message is received
@@ -160,26 +250,35 @@
 				// broadcast message to existing windows
 				wm.broadcast({ event: "chat_message", arg: { from: from, message: msg.arg } })
 			}
+
+			// play a sound to the user
+			play_notification_sound()
 		}
 
 		// called on new incoming calls
 		this_that.callbacks.call_incoming = (call) => {
+			// notify the windows, and create a new call window
 			wm.broadcast({ event: "call_incoming", arg: call.peer })
 			wm.add_window("call_incoming.html", { peer_id: call.peer })
+
+			// play a sound to the user
+			play_notification_sound()
 		}
 		
-		// called on ended calls
-		this_that.callbacks.call_ended = (call) => {
-			console.log("call_ended")
-			wm.broadcast({ event: "call_ended", arg: call.peer })
+		// forward other call events to be handled by windows
+		this_that.callbacks.call_add = (call) => {
+			wm.broadcast({ event: "call_add", arg: call.peer })
 		}
-
+		this_that.callbacks.call_answer = (call) => {
+			wm.broadcast({ event: "call_answer", arg: call.peer })
+		}
 		this_that.callbacks.call_stream = (call) => {
-			console.log("call_stream")
 			wm.broadcast({ event: "call_stream", arg: call.peer })
 		}
-
-
+		this_that.callbacks.call_ended = (call) => {
+			wm.broadcast({ event: "call_ended", arg: call.peer })
+		}
+		
 		// update the minimized window list when a window gets minimized/unminimized
 		let minimized_windows = new Map()
 		wm.callbacks.win_minimize = (win) => {
