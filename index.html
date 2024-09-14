@@ -15,6 +15,7 @@
 			--bg-color: #fff;
 		}
 		body, html {
+			color-scheme: light dark;
 			padding: 0 0;
 			margin: 0 0;
 			background-color: var(--bg-color);
@@ -97,6 +98,14 @@
 			Currently minimized windows(click to restore):
 		</p>
 		<div id="minimized_window_list"></div>
+		<details>
+			<summary>Select window style</summary>
+			<button class="btn" onclick="window_style.href='window_manager_library/window_flat.css'">window_flat.css</button>
+			<button class="btn" onclick="window_style.href='window_manager_library/window_glass.css'">window_glass.css</button>
+			<button class="btn" onclick="window_style.href='window_manager_library/window_xp.css'">window_xp.css</button>
+			<button class="btn" onclick="window_style.href='window_manager_library/window_98.css'">window_98.css</button>
+			<button class="btn" onclick="window_style.href='window_manager_library/window_basic.css'">window_basic.css</button>
+		</details>
 	</main>
 
 	<!-- Window template instanced by Javascript -->
