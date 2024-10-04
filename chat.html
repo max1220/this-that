@@ -8,6 +8,9 @@
 		<link rel="stylesheet" href="window.css">
 		<link rel="stylesheet" href="common.css">
 		<style>
+			main {
+				overflow: auto;
+			}
 			#chat_text {
 				text-wrap: wrap;
 				user-select: text;
@@ -29,8 +32,8 @@
 	</head>
 	<body data-preferred-window-width="350" data-preferred-window-height="400">
 		<nav class="nav">
-			<button class="btn-small" onclick="call()">Call</button>
-			<button class="btn-small" onclick="profile()">Profile</button>
+			<button class="btn-small" onclick="open_call()">Call</button>
+			<button class="btn-small" onclick="open_profile()">Profile</button>
 			<label class="btn-small">
 				<span>Send image...</span>
 				<input type="file" id="send_image_elem" onchange="send_image(event)">
@@ -39,6 +42,7 @@
 				<span>Send file...</span>
 				<input type="file" id="send_file_elem" onchange="send_file(event)">
 			</label>
+			<button class="btn-small" onclick="clear_history()">Clear chat history</button>
 		</nav>
 		<main>
 			<pre id="chat_text">(chat begin)
@@ -51,42 +55,44 @@
 		</nav>
 
 		<script src="window_manager_library/WindowClient.js"></script>
-		<script src="contacts_list.js"></script>
 		<script src="DOMPurify/dist/purify.min.js"></script>
 		<script>
 			// get control over this window
 			let wm_client = new WindowClient(window.parent)
+			let this_that = window.parent.this_that
 
 			// checked by the top-level window when new messages arrive
 			var RECEIVE_CHAT_MESSAGE_FOR
 
-			let this_that = window.parent.this_that
-
-			let name_for_id = (peer_id) => contacts_list[peer_id] ? contacts_list[peer_id].name : peer_id
-
+			let other_profile = undefined
 			// handle the initial window arguments(init)
 			wm_client.callbacks.window_arg = (arg) => {
-				if (!arg.peer_id) { console.error("Need peer_id!"); return; }
-
-				// add chat history
-				if (window.parent.CHAT_MESSAGES[arg.peer_id]) {
-					window.parent.CHAT_MESSAGES[arg.peer_id].forEach((msg) => add_chat_message(name_for_id(msg.from), msg.message))
-				}
-
-				document.title = "Chat - " + name_for_id(arg.peer_id)
-				wm_client.set_title(document.title)
-
+				// get a profile from storage
+				if (!arg.public_key_hash) { console.error("Need public_key_hash!"); return; }
+				if (!this_that.has_profile_storage(arg.public_key_hash)) { console.error("No profile!"); return; }
+				other_profile = this_that.get_profile_storage(arg.public_key_hash, (other_profile_data) => {
+					// add chat history
+					other_profile_data.chat_history.forEach((msg) => add_chat_message(msg.from == "self" ? "You" : other_profile_data.profile_data.username, msg.arg))
+					document.title = "Chat - " + other_profile_data.profile_data.username
+					wm_client.set_title(document.title)	
+				})
 				// export the chat peer this window is using
-				RECEIVE_CHAT_MESSAGE_FOR = arg.peer_id
+				RECEIVE_CHAT_MESSAGE_FOR = arg.public_key_hash
 			}
 
 			// handle a notification about an incoming chat message
 			wm_client.callbacks.broadcast_event.chat_message = (msg) => {
 				if (msg.from !== RECEIVE_CHAT_MESSAGE_FOR) { return; }
-				add_chat_message(name_for_id(msg.from), msg.message)
+				add_chat_message(other_profile.data.profile_data.username, msg.message)
 			}
-
+              
 			wm_client.register_message_handler()
+
+			function clear_history() {
+				other_profile.data.chat_history = []
+				other_profile.update()
+				chat_text.innerText = "(chat cleared)"
+			}
 
 			// add the chat message to the chat log
 			function add_chat_message(username_text, message_text) {
@@ -94,12 +100,13 @@
 				username_text_elem.innerText = username_text + ": "
 				username_text_elem.classList.add("username")
 				let message_text_elem = document.createElement("span")
-				console.log("original text:", message_text)
 				message_text_elem.innerHTML = DOMPurify.sanitize(message_text, {
-					ALLOWED_TAGS: [ "a", "b", "i", "p", "q", "s", "u", "hr", "span", "img", "ul", "li", "ol", "dt", "dd", "details" ],
+					ALLOWED_TAGS: [
+						"a", "img",
+						"b", "i", "p", "s", "u", "hr",
+						"details", "pre", "code", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "li", "ol", "dt", "dd" ],
 					ALLOWED_ATTR: [ "style", "src", "alt", "href" ]
 				})
-				console.log("new text:", message_text_elem.innerHTML)
 				message_text_elem.classList.add("message")
 				chat_text.appendChild(username_text_elem)
 				chat_text.appendChild(message_text_elem)
@@ -117,17 +124,17 @@
 				if (message_input_text == "") { return; }
 				message_input.value = ""
 				add_chat_message("You", message_input_text)
-				window.parent.this_that.send_chat_message(RECEIVE_CHAT_MESSAGE_FOR, message_input_text)
+				this_that.send_chat_message(RECEIVE_CHAT_MESSAGE_FOR, message_input_text)
 			}
 
 			// open the user profile page
-			function profile() {
-				wm_client.add_window("profile.html", { peer_id: RECEIVE_CHAT_MESSAGE_FOR })
+			function open_profile() {
+				wm_client.add_window("profile.html", { public_key_hash: RECEIVE_CHAT_MESSAGE_FOR })
 			}
 
 			// call the chat partner
-			function call() {
-				wm_client.add_window("call_outgoing.html", { peer_id: RECEIVE_CHAT_MESSAGE_FOR })
+			function open_call() {
+				wm_client.add_window("call_outgoing.html", { public_key_hash: RECEIVE_CHAT_MESSAGE_FOR })
 			}
 
 			// send a file to the chat
@@ -137,7 +144,7 @@
 				reader.onload = function(e) {
 					file_html = `<a data-download-name="${file.name}" data-download-data="${e.target.result}">Download '${file.name}'</a>`
 					add_chat_message("You", file_html)
-					window.parent.this_that.send_chat_message(RECEIVE_CHAT_MESSAGE_FOR, file_html)
+					this_that.send_chat_message(RECEIVE_CHAT_MESSAGE_FOR, file_html)
 				}
 				reader.readAsDataURL(file);
 			}
@@ -149,7 +156,7 @@
 				reader.onload = function(e) {
 					image_html = `<img src="${e.target.result}" alt="${file.name}">`
 					add_chat_message("You", image_html)
-					window.parent.this_that.send_chat_message(RECEIVE_CHAT_MESSAGE_FOR, image_html)
+					this_that.send_chat_message(RECEIVE_CHAT_MESSAGE_FOR, image_html)
 				}
 				reader.readAsDataURL(file);
 			}

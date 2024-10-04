@@ -11,7 +11,7 @@
 	<body data-preferred-window-width="350" data-preferred-window-height="200">
 		<main>
 			<p>
-				Do you want to call <span class="call_remote_name"></span>?
+				Do you want to call <span id="call_remote_name"></span>?
 			</p>
 			<p>
 				<label>
@@ -29,56 +29,52 @@
 			</p>
 		</main>
 		<nav class="nav">
-			<button class="btn-small" onclick="cancel()">Cancel</button>
+			<button class="btn-small" onclick="cancel_btn()">Cancel</button>
 			<span class="spacer"></span>
-			<button class="btn-small" id="call_btn" onclick="call()">Call</button>
+			<button class="btn-small" id="call_btn" onclick="request_call()">Call</button>
 		</nav>
 
 		<script src="window_manager_library/WindowClient.js"></script>
-		<script src="contacts_list.js"></script>
 		<script>
 			// get control over this window
 			let wm_client = new WindowClient(window.parent)
-
 			let this_that = window.parent.this_that
-
-			let name_for_id = (peer_id) => contacts_list[peer_id] ? contacts_list[peer_id].name : peer_id
-
-			let peer_id = undefined
-
+			let other_profile = undefined
+			let peer_id = () => other_profile.data.profile_data.peer_id
+			
 			// cancel button was pressed
-			function cancel() {
+			function cancel_btn() {
 				call.close()
 				wm_client.close()
 			}
 
 			// call button was pressed
-			function call() {
+			function request_call() {
 				let stream_type = "audio"
 				if (video_radio.checked) {
 					stream_type = "video"
 				} else if (screen_radio.checked) {
 					stream_type = "screen"
 				}
-				console.log("Requesting call with: ", stream_type, peer_id)
-				this_that.call_peer(peer_id, stream_type)
+				console.log("Requesting call with: ", stream_type, peer_id())
+				this_that.call_peer(peer_id(), stream_type)
 				call_btn.innerText = "Requesting self stream..."
 				call_btn.disabled = true
 			}
 
 			wm_client.callbacks.broadcast_event.call_add = (call_peer_id) => {
-				if (call_peer_id !== peer_id)
-				console.log("Starting call with: ", peer_id)
+				if (call_peer_id !== peer_id()) { return; }
+				console.log("Starting call with: ", peer_id())
 				call_btn.innerText = "Calling..."
 			}
 			wm_client.callbacks.broadcast_event.call_answer = (call_peer_id) => {
-				if (call_peer_id !== peer_id)
+				if (call_peer_id !== peer_id()) { return; }
 				console.log("call got answered! closing...")
-				wm_client.add_window("call.html", { peer_id: peer_id })
+				wm_client.add_window("call.html", { public_key_hash: other_profile.data.public_key_hash })
 				wm_client.close()
 			}
 			wm_client.callbacks.broadcast_event.call_ended = (call_peer_id) => {
-				if (call_peer_id !== peer_id)
+				if (call_peer_id !== peer_id()) { return; }
 				console.log("call got canceled")
 				call_btn.disabled = true
 				call_btn.innerText = "Call"
@@ -86,13 +82,13 @@
 
 			// handle the initial window arguments(init)
 			wm_client.callbacks.window_arg = (arg) => {
-				if (!arg.peer_id) { console.error("Need peer_id!"); return; }
-				peer_id = arg.peer_id
-				console.log("Caller ID:", peer_id)
-				// update call partner name
-				let name = name_for_id(arg.peer_id)
-				console.log("Caller name or ID:", name)
-				document.querySelectorAll(".call_remote_name").forEach((e) => e.innerText = name)
+				if (!arg.public_key_hash) { console.error("Need public_key_hash!"); return; }
+				if (!this_that.has_profile_storage(arg.public_key_hash)) { console.error("No profile!"); return; }
+				other_profile = this_that.get_profile_storage(arg.public_key_hash, (other_profile_data) => {
+					document.title = "Outgoing call - " + other_profile_data.profile_data.username
+					wm_client.set_title(document.title)	
+					call_remote_name.innerText = other_profile_data.profile_data.username
+				})
 			}
 			wm_client.register_message_handler()
 		</script>

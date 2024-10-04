@@ -14,6 +14,17 @@ label {
 	flex-grow: 1;
 }
 
+.form label {
+	display: flex;
+}
+.form label span {
+	min-width: 100px;
+}
+.form label input {
+	flex-grow: 1;
+	min-width: 75px;
+}
+
 .lead {
 	font-size: 125%;
 	font-weight: lighter;

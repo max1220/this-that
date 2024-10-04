@@ -16,7 +16,7 @@
 	<body data-preferred-window-width="350" data-preferred-window-height="200">
 		<main>
 			<p id="status_text">
-				Call with <span class="call_remote_name"></span>
+				Call with <span id="call_remote_name"></span>
 			</p>
 			<div id="stream_container">
 				
@@ -36,26 +36,13 @@
 		<script>
 			// get control over this window
 			let wm_client = new WindowClient(window.parent)
-
 			let this_that = window.parent.this_that
-
-			let name_for_id = (peer_id) => contacts_list[peer_id] ? contacts_list[peer_id].name : peer_id
-
+			let other_profile = undefined
+			let peer_id = () => other_profile.data.profile_data.peer_id
 			let call = undefined
 
 			function hangup() {
 				call.close()
-				//wm_client.close()
-			}
-			function mute_self() {
-				mute_self_btn.classList.add("hidden")
-				unmute_self_btn.classList.remove("hidden")
-				this_that.mute_self()
-			}
-			function unmute_self() {
-				mute_self_btn.classList.remove("hidden")
-				unmute_self_btn.classList.add("hidden")
-				this_that.unmute_self()
 			}
 			function create_stream_elem() {
 				if (!call.remote_stream) { console.log("No remote stream!"); return; }
@@ -71,7 +58,16 @@
 				stream_elem.autoplay = true
 				stream_elem.controls = true
 				stream_container.appendChild(stream_elem)
-
+			}
+			function mute_self() {
+				mute_self_btn.classList.add("hidden")
+				unmute_self_btn.classList.remove("hidden")
+				this_that.mute_self()
+			}
+			function unmute_self() {
+				mute_self_btn.classList.remove("hidden")
+				unmute_self_btn.classList.add("hidden")
+				this_that.unmute_self()
 			}
 			function unmute_other() {
 				let stream_elem = document.querySelector(".remote_stream")
@@ -81,7 +77,7 @@
 				unmute_other_btn.classList.add("hidden")
 			}
 			function mute_other() {
-				document.querySelector("audio").muted = true
+				document.querySelector(".remote_stream").muted = true
 				mute_other_btn.classList.add("hidden")
 				unmute_other_btn.classList.remove("hidden")
 			}
@@ -105,17 +101,16 @@
 				if (call) { return true; }
 			}
 			wm_client.callbacks.window_arg = (arg) => {
-				if (!arg.peer_id) { console.error("Need peer_id!"); return; }
-				call = window.parent.this_that.calls.get(arg.peer_id)
-				if (!call) { console.error("Need call!"); return; }
-
-				create_stream_elem()
-
-				// update call partner name
-				let name = name_for_id(arg.peer_id)
-				document.title = "Call: " + name
-				wm_client.set_title("Call: " + name)
-				document.querySelectorAll(".call_remote_name").forEach((e) => e.innerText = name)
+				if (!arg.public_key_hash) { console.error("Need public_key_hash!"); return; }
+				if (!this_that.has_profile_storage(arg.public_key_hash)) { console.error("No profile!"); return; }
+				other_profile = this_that.get_profile_storage(arg.public_key_hash, (other_profile_data) => {
+					document.title = "Call - " + other_profile_data.profile_data.username
+					wm_client.set_title(document.title)	
+					call_remote_name.innerText = other_profile_data.profile_data.username
+					call = this_that.calls.get(other_profile_data.profile_data.peer_id)
+					if (!call) { console.error("Need call!"); return; }
+					create_stream_elem()
+				})
 			}
 			wm_client.register_message_handler()
 		</script>

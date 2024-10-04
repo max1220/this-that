@@ -10,6 +10,7 @@
 		<style>
 			main {
 				overflow: auto;
+				background-color: #fff;
 			}
 			.profile_name , .profile_status , .contact_status {
 				font-weight: bold;
@@ -17,91 +18,89 @@
 		</style>
 	</head>
 	<body data-preferred-window-width="350" data-preferred-window-height="400">
+		<nav class="nav">
+			<button class="btn-small" id="open_chat_btn" onclick="open_chat()">Chat</button>
+			<button class="btn-small" id="open_call_btn" onclick="open_call()">Call</button>
+			<button class="btn-small" id="set_nickname_btn" onclick="set_nickname()">Set nickname</button>
+			<button class="btn-small" id="block_profile_btn" onclick="block_profile()">Block</button>
+			<button class="btn-small hidden" id="unblock_profile_btn" onclick="unblock_profile()">Unblock</button>
+		</nav>
+
 		<main>
-			<h1 class="title_text"></h1>
-			<p>
-				Online status: <span class="profile_status">Please wait</span><br>
-				Contact status: <span class="contact_status">Not in contact list</span>
-			</p>
-			<p>
-				<button class="btn-small hidden" id="edit_contact_btn">Edit contact</button>
-				<button class="btn-small" id="add_contact_btn">Add contact</button>
-			</p>
 			<div id="profile_content"></div>
 		</main>
 
 		<script src="window_manager_library/WindowClient.js"></script>
-		<script src="contacts_list.js"></script>
 		<script src="DOMPurify/dist/purify.min.js"></script>
 		<script>
 			// get control over this window
 			let wm_client = new WindowClient(window.parent)
-
 			let this_that = window.parent.this_that
+			let viewed_profile = undefined
 
-			let name_for_id = (peer_id) => contacts_list[peer_id] ? contacts_list[peer_id].name : peer_id
+			function open_chat() {
+				if (!viewed_profile) { return; }
+				wm_client.add_window("chat.html", { public_key_hash: viewed_profile.data.public_key_hash })
+			}
+			function open_call() {
+				if (!viewed_profile) { return; }
+				wm_client.add_window("call_outgoing.html", { public_key_hash: viewed_profile.data.public_key_hash })
+			}
+			function set_nickname() {
+				if (!viewed_profile) { return; }
+				viewed_profile.data.nickname = prompt("New nickname?")
+				viewed_profile.update()
+			}
+			function block_profile() {
+				viewed_profile.data.blocked = true
+				viewed_profile.update()
+			}
+			function unblock_profile() {
+				viewed_profile.data.blocked = false
+				viewed_profile.update()
+			}
+
+			function update_profile(profile_data) {
+				profile_content.innerHTML = DOMPurify.sanitize(profile_data.content, {
+					ALLOWED_TAGS: [
+						"a", "img",
+						"b", "i", "p", "s", "u", "hr",
+						"details", "pre", "code", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "li", "ol", "dt", "dd" ],
+					ALLOWED_ATTR: [ "style", "src", "alt", "href" ]
+				})
+				document.title = "Profile - " + profile_data.username
+				if (profile_data.blocked) {
+					block_profile_btn.classList.add("hidden")
+					unblock_profile_btn.classList.remove("hidden")
+				} else {
+					block_profile_btn.classList.remove("hidden")
+					unblock_profile_btn.classList.add("hidden")
+				}
+				wm_client.set_title(document.title)
+			}
+
+			wm_client.callbacks.broadcast_event.profile_update = (profile_update) => {
+				if (profile_update.from !== viewed_profile.data.public_key_hash) { return; }
+				console.log("Got profile_update broadcast event:",profile_update)
+				update_profile(profile_update.profile_data)
+			}
 
 			// handle the initial window arguments(init)
 			wm_client.callbacks.window_arg = (arg) => {
-				if (!arg.peer_id) { console.error("Need peer_id!"); return; }
-
-				let profile = this_that.get_profile(arg.peer_id)
-
-				if (contacts_list[peer_id]) {
-					let title = 
-					document.querySelectorAll(".title_text").forEach((e) => {})
-					document.title = "Profile - " + name_for_id(arg.peer_id)
-					wm_client.set_title(arg.peer_id)
-					document.querySelectorAll(".contact_name").forEach((e) => e.innerText = name_for_id(arg.peer_id) )
-					document.querySelectorAll(".contact_status").forEach((e) => e.innerText = "In contacts list" )
-				}
-
-				// export the chat peer this window is using
-				RECEIVE_CHAT_MESSAGE_FOR = arg.peer_id
-			}
-
-			// handle a notification about an incoming chat message
-			wm_client.callbacks.broadcast_event.chat_message = (msg) => {
-				if (msg.from !== RECEIVE_CHAT_MESSAGE_FOR) { return; }
-				add_chat_message(name_for_id(msg.from), msg.message)
+				if (!arg.public_key_hash) { console.error("Need public_key_hash!"); return; }
+				if (!this_that.has_profile_storage(arg.public_key_hash)) { console.error("No profile!"); return; }
+				viewed_profile = this_that.get_profile_storage(arg.public_key_hash, (data) => {
+					console.log("Got profile data storage event:", data.profile_data)
+					update_profile(data.profile_data)
+				})
 			}
 
 			wm_client.register_message_handler()
-
-			// open the user profile page
-			function profile() {
-				wm_client.add_window("profile.html", { peer_id: RECEIVE_CHAT_MESSAGE_FOR })
-			}
 
 			// call the chat partner
 			function call() {
 				wm_client.add_window("call_outgoing.html", { peer_id: RECEIVE_CHAT_MESSAGE_FOR })
 			}
-
-			// send a file to the chat
-			function send_file(e) {
-				var file = document.getElementById("send_file_elem").files[0];
-				var reader = new FileReader()
-				reader.onload = function(e) {
-					file_html = `<a data-download-name="${file.name}" data-download-data="${e.target.result}">Download '${file.name}'</a>`
-					add_chat_message("You", file_html)
-					window.parent.this_that.send_chat_message(RECEIVE_CHAT_MESSAGE_FOR, file_html)
-				}
-				reader.readAsDataURL(file);
-			}
-
-			// send an image to the chat
-			function send_image(e) {
-				var file = document.getElementById("send_image_elem").files[0];
-				var reader = new FileReader()
-				reader.onload = function(e) {
-					image_html = `<img src="${e.target.result}" alt="${file.name}">`
-					add_chat_message("You", image_html)
-					window.parent.this_that.send_chat_message(RECEIVE_CHAT_MESSAGE_FOR, image_html)
-				}
-				reader.readAsDataURL(file);
-			}
-
 		</script>
 	</body>
 </html>

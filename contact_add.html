@@ -5,36 +5,23 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<link rel="icon" type="image/x-icon" href="this_that_favicon.ico">
 		<title>Add contact...</title>
-		<link rel="stylesheet" href="window_client.css">
-		<style>
-			label {
-				display: flex;
-			}
-			label span {
-				min-width: 75px;
-			}
-			label input {
-				flex-grow: 1;
-				min-width: 75px;
-			}
-		</style>
+		<link rel="stylesheet" href="window.css">
+		<link rel="stylesheet" href="common.css">
 	</head>
 	<body data-preferred-window-width="250" data-preferred-window-height="120">
 		
 		<main>
-			<label>
-				<span>ID:</span>
-				<input type="text" id="contact_id_input">
-			</label>
-			<label>
-				<span>Name:</span>
-				<input type="text" id="contact_name_input">
-			</label>
+			<div class="form">
+				<label>
+					<span>ID:</span>
+					<input type="text" id="contact_id_input">
+				</label>
+			</div>
 		</main>
-		<nav>
-			<button onclick="wm_client.close()">Cancel</button>
+		<nav class="nav">
+			<button class="btn-small" onclick="wm_client.close()">Cancel</button>
 			<span class="spacer"></span>
-			<button onclick="add_contact_btn()">Add contact</button>
+			<button class="btn-small" id="add_contact_btn" onclick="add_contact_btn()">Add contact</button>
 		</nav>
 
 		<script src="/window_manager_library/WindowClient.js"></script>
@@ -42,29 +29,36 @@
 		<script>
 			// get control over this window
 			let wm_client = new WindowClient(window.parent)
-			wm_client.callbacks.window_arg = (arg) => {
-				if (arg.peer_id) { contact_id_input.value = arg.peer_id; }
-				if (arg.name) { contact_name_input.value = arg.name; }
-			}
-			wm_client.register_message_handler()
+			let this_that = window.parent.this_that
 
 			// add contact button was clicked
 			function add_contact_btn() {
 				let contact_peer_id = contact_id_input.value
-				let contact_name = contact_name_input.value
-				if (contact_peer_id=="" || contact_name=="") { return; }
-				if (contacts_list[contact_peer_id]) { return; }
-				contacts_list[contact_peer_id] = {
-					name: contact_name,
-					peer_id: contact_peer_id,
+				if (contact_peer_id=="") { return; }
+				add_contact_btn.innerText = "Connecting..."
+				this_that.add_outgoing_connection(contact_peer_id)
+				add_contact_btn.disabled = true
+			}
+
+			// handle the initial window arguments(init)
+			wm_client.callbacks.broadcast_event.profile_update = (profile) => {
+				if (profile.profile_data.peer_id == contact_id_input.value) {
+					wm_client.return_dialog()
+					wm_client.close()
 				}
-				wm_client.close()
 			}
 
 			// require confirmation before closing
 			wm_client.callbacks.close_confirm = () => {
 				wm_client.return_dialog()
+				wm_client.close()
 			}
+
+			wm_client.callbacks.window_arg = (arg) => {
+				if (arg.peer_id) { contact_id_input.value = arg.peer_id; }
+			}
+
+			wm_client.register_message_handler()
 
 			// resize to fixed dimensions(after possible auto-resize from iframe onload)
 			document.body.onload = () => {

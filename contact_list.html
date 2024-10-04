@@ -6,10 +6,14 @@
 	<meta name="description" content="This-That peer-to-peer communication">
 	<meta name="author" content="max1220">
 	<link rel="icon" type="image/x-icon" href="this_that_favicon.ico">
-	<title>Contacts</title>
+	<title>Contact List</title>
 	<link rel="stylesheet" href="window.css">
 	<link rel="stylesheet" href="common.css">
 	<style>
+		main {
+			background-color: #fff;
+			overflow: auto;
+		}
 		table {
 			flex-grow: 1;
 			width: 100%;
@@ -27,18 +31,19 @@
 </head>
 <body data-preferred-window-width="450" data-preferred-window-height="250">
 	<nav class="nav">
-		<button class="btn-small" onclick="add_contact()">Add concact</button>
-		<button class="btn-small" onclick="open_contact()">Edit contact</button>
-		<button class="btn-small" onclick="open_profile()">View profile</button>
-		<button class="btn-small" onclick="open_chat()">Chat</button>
-		<button class="btn-small" onclick="open_call()">Call</button>
+		<button class="btn-small" onclick="add_profile()">Add concact</button>
+		<button class="btn-small" id="open_profile_btn" onclick="open_profile()" disabled>View profile</button>
+		<button class="btn-small" id="open_chat_btn" onclick="open_chat()" disabled>Chat</button>
+		<button class="btn-small" id="open_call_btn" onclick="open_call()" disabled>Call</button>
 	</nav>
 	<main>
-		<table id="contacts_table">
+		<table id="profiles_table">
 			<thead>
 				<tr>
-					<td>Name</td>
+					<td>Username</td>
+					<td>Nickname</td>
 					<td>ID</td>
+					<td>First seen</td>
 				</tr>
 			</thead>
 			<tbody>
@@ -51,60 +56,71 @@
 	</main>
 
 	<script src="window_manager_library/WindowClient.js"></script>
-	<script src="contacts_list.js"></script>
 	<script>
 		// get control over this window
 		let wm_client = new WindowClient(window.parent)
 		wm_client.register_message_handler()
+		let this_that = window.parent.this_that
 
-		function add_contact() {
-			wm_client.add_window("contact_add.html", {})
+		let selected_profile = undefined
+		function add_profile() {
+			wm_client.add_dialog("contact_add.html", {}, update_profiles_list)
 		}
 		function open_profile() {
-			wm_client.add_window("profile.html", { peer_id: selected_contact.peer_id })
-		}
-		function open_contact() {
-			if (!selected_contact) { return; }
-			wm_client.add_window("contact_edit.html", { peer_id: selected_contact.peer_id })
+			if (!selected_profile) { return; }
+			wm_client.add_window("profile.html", { public_key_hash: selected_profile.public_key_hash })
 		}
 		function open_chat() {
-			if (!selected_contact) { return; }
-			wm_client.add_window("chat.html", { peer_id: selected_contact.peer_id })
+			if (!selected_profile) { return; }
+			wm_client.add_window("chat.html", { public_key_hash: selected_profile.public_key_hash })
 		}
 		function open_call() {
-			if (!selected_contact) { return; }
-			wm_client.add_window("call_outgoing.html", { peer_id: selected_contact.peer_id })
+			if (!selected_profile) { return; }
+			wm_client.add_window("call_outgoing.html", { public_key_hash: selected_profile.public_key_hash })
 		}
 
-		// update the contacts table
-		function update_contacts_list() {
-			let contacts_table = document.querySelector("#contacts_table tbody")
+		wm_client.callbacks.broadcast_event.profile_update = (profile) => {
+			update_profiles_list()
+		}
+
+		// update the profiles table
+		function update_profiles_list() {
+			let profiles_keys = this_that.get_profile_keys()
+			let profiles_list = profiles_keys.map((key) => JSON.parse(localStorage.getItem(key)))
+			console.log("update_profiles_list", profiles_list)
+			// TODO: FIX: This assumes string-sorting for dates! Parse dates and then compare.
+			profiles_list.sort((a,b) => a.first_seen>b.first_seen)
+
+			open_profile_btn.disabled = true
+			open_chat_btn.disabled = true
+			open_call_btn.disabled = true
+
+			let profiles_table = document.querySelector("#profiles_table tbody")
 			// remove old rows
-			contacts_table.querySelectorAll("tbody tr").forEach(e => e.remove())
+			profiles_table.querySelectorAll("tbody tr").forEach(e => e.remove())
 			// add new rows
-			let contacts_list_keys = contacts_list.keys()
-			contacts_list_keys.sort()
-			for (let i=0; i<contacts_list_keys.length; i++) {
-				let contact = contacts_list[contacts_list_keys[i]]
-				let tr = contacts_table.insertRow()
-				tr.insertCell().appendChild(document.createTextNode(contact.name))
-				tr.insertCell().appendChild(document.createTextNode(contact.peer_id))
+			for (let i=0; i<profiles_list.length; i++) {
+				let profile = profiles_list[i]
+				let tr = profiles_table.insertRow()
+				tr.insertCell().appendChild(document.createTextNode(profile.profile_data.username))
+				tr.insertCell().appendChild(document.createTextNode(profile.nickname ? profile.nickname : ""))
+				tr.insertCell().appendChild(document.createTextNode(profile.profile_data.peer_id))
+				tr.insertCell().appendChild(document.createTextNode(profile.first_seen))
 				tr.onclick = () => {
-					console.log("selected", contact)
 					document.querySelectorAll("tr.selected").forEach(e => e.classList.remove("selected"))
 					tr.classList.add("selected")
-					selected_contact = contact 
+					selected_profile = profile
+					open_profile_btn.disabled = false
+					open_chat_btn.disabled = false
+					open_call_btn.disabled = false
 				}
-				if (i==0) { tr.onclick(); }
 				tr.ondblclick = () => {
 					tr.onclick()
-					open_chat()
+					open_profile()
 				}
 			}
-			let first_contact = contacts_list[contacts_list_keys[1]]
 		}
-
-		update_contacts_list()
+		update_profiles_list()
 	</script>
 </body>
 </html>

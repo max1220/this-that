@@ -9,20 +9,13 @@ function ThisThat() {
 	this.callbacks = {}
 	this.crypto_lib = new CryptoLib()
 	
+	// storage for own profile
+	this.self_profile_storage = new SyncedLocalStorageObject("this_that_self_profile")
+
 	// trigger a callback function if present
 	let trigger_callback = (name, arg) => {
 		if (!this.callbacks[name]) { return; }
 		return this.callbacks[name](arg)
-	}
-
-	// storage for own profile
-	this.self_profile_storage = new SyncedLocalStorageObject("this_that_self_profile", (self_profile_data) => trigger_callback("self_profile_update", self_profile_data))
-	if (!this.self_profile_storage.data) {
-		console.log("No profile! Generating one...")
-		this.self_profile_storage.update({
-			username: "Unnamed user #" + Math.floor(10000+Math.random()*90000),
-			content: "<h1>Hello World!</h1>\n<p>This is the default profile. <b>Hurray!</b></p>"
-		})
 	}
 
 	// create a signed profile update envelope and send it to con
@@ -50,11 +43,9 @@ function ThisThat() {
 	this.has_profile_storage = (public_key_hash) => localStorage.hasOwnProperty("this_that_profile_"+public_key_hash)
 
 	// get or create the localStorage wrapper for a profile based on it's public key hash
-	this.get_profile_storage = (public_key_hash, on_update, create_profile) => {
-		if (!public_key_hash) { console.error("Need public_key_hash!"); return; }
-		if (!create_profile && !this.has_profile_storage(public_key_hash)) { console.error("No profile!"); return; }
+	this.get_profile_storage = (public_key_hash, on_update) => {
 		let profile_storage = new SyncedLocalStorageObject("this_that_profile_"+public_key_hash, on_update)
-		if (create_profile && !profile_storage.data) {
+		if (!profile_storage.data) {
 			profile_storage.update({
 				public_key_hash: public_key_hash,
 				first_seen: new Date().toISOString(),
@@ -66,64 +57,23 @@ function ThisThat() {
 
 	// handle an incoming profile update
 	this.handle_profile_update = async (con, profile_update_envelope) => {
-		let middle_json = await this.crypto_lib.verify_envelope(profile_update_envelope, 5000)
-		if (!middle_json) { console.error("Profile update could not be verified!"); return; }
-		if (middle_json.inner_data.peer_id !== con.peer) { console.error("Peer ID mismatch!", con.peer, middle_json.inner_data); return; }
-		let profile_storage = this.get_profile_storage(middle_json.public_key_hash, undefined, true)
-		profile_storage.data.profile_data = middle_json.inner_data
+		let inner_json = await this.crypto_lib.verify_envelope(profile_update_envelope, 5000)
+		if (!inner_json) { console.error("Profile update could not be verified!"); return; }
+		if (inner_json.profile_data.peer_id !== con.peer) { console.error("Peer ID mismatch!", con.peer, inner_json.profile_data); return; }
+		let profile_storage = this.get_profile_storage(inner_json.public_key_hash)
+		profile_storage.data.profile_data = inner_json.profile_data
 		profile_storage.data.last_seen = new Date().toISOString()
 		profile_storage.update()
-		// detect if this connection just gained it's profile(became authenticated)
-		if (!con.profile) {
-			con.profile = profile_storage
-			trigger_callback("connection_profile_ready", con)
-			if (con.profile_ready_cb) { con.profile_ready_cb(con); }
-		}
 		con.profile = profile_storage
 		console.log("handle_profile_update", profile_storage)
 		trigger_callback("profile_update", profile_storage)
 	}
 
-
-
-
-	// handle the self peer becoming ready
-	this.self_peer.on("open", (id) => {
-		localStorage.setItem("this_that_last_peer_id", id)
-		this.self_profile_storage.data.peer_id = id
-		this.self_profile_storage.update()
-
-		// get own signing keys
-		this.crypto_lib.import_or_generate_own_signature_keys().then((keys) => {
-			this.signature_keys = keys
-			this.crypto_lib.public_key_hash(keys.public_key_jwk).then((hash) => {
-				this.self_profile_storage.data.public_key_jwk = keys.public_key_jwk
-				this.self_profile_storage.data.public_key_hash = hash
-				this.self_profile_storage.update()
-				trigger_callback("ready", id)
-			})
-		})
+	// send a message to the specified peer_id
+	this.send_to_peer = (peer_id, data) => this.connect_peer(peer_id, (con) => {
+		console.log("sending to",peer_id,":",data)
+		con.send(data)
 	})
-
-	// handle a self peer error
-	this.self_peer.on("error", (err) => {
-		console.error("self_peer Error:", err)
-	})
-
-
-
-	// send a message to the specified peer_id(waits for authentication first)
-	this.send_to_peer = (peer_id, data) => {
-		if (this.connections.has(peer_id)) {
-			// already has a connection, send immediately
-			this.connections.get(peer_id).send(data)
-		} else {
-			// need a new connection, send when the connection becomes authenticated
-			this.add_outgoing_connection(peer_id, (con) => {
-				con.send(data)
-			})
-		}
-	}
 
 	// send a chat message to a peer
 	this.send_chat_message = (public_key_hash, message) => {
@@ -143,19 +93,12 @@ function ThisThat() {
 		})
 	}
 
-	// notify all connected peers that your profile has changed
-	this.broadcast_profile_update = () => {
-		for (let con of this.connections.values()) {
-			this.send_profile_update(con)
-		}
-	}
-
 	// handle a chat message from a user
-	this.handle_chat_message = (con, message) => {
+	this.handle_chat_message = (con, data) => {
 		let now = new Date().toISOString()
-		con.profile.data.chat_history.push({ from: con.profile.public_key_hash, time: now, arg: message })
+		con.profile.data.chat_history.push({ from: con.profile.public_key_hash, time: now, arg: data })
 		con.profile.update()
-		trigger_callback("chat_message", { from: con, time: now, arg: message})
+		trigger_callback("chat_message", { from: con, time: now, arg: data})
 	}
 
 	// handle data from a connection
@@ -181,80 +124,6 @@ function ThisThat() {
 		}
 	}
 
-	// TODO: HACK: needed because commands need to be processesed in order,
-	// but processing them is async, and commands are triggered by an event handler
-	this.check_con_data_hack = () => {
-		for (let con of this.connections.values()) {
-			if (con.data_ready && (con.data_buf.length > 0)) {
-				con.data_ready = false
-				this.handle_data(con, con.data_buf.shift()).then(() => {
-					con.data_ready = true
-				})
-			}
-		}
-	}
-	setInterval(this.check_con_data_hack, 60)
-
-	// create an outgoing connection(call profle_ready_cb when the connection has a profile(is authenticated))
-	this.add_outgoing_connection = (peer_id, profile_ready_cb) => {
-		if (this.connections.has(peer_id)) { console.error("Already has connection with peer!"); return; }
-		//let con = this.self_peer.connect(peer_id, { reliable: true })
-		let con = this.self_peer.connect(peer_id)
-		con.profile_ready_cb = profile_ready_cb
-		console.log("add_outgoing_connection?", peer_id, con)
-		con.on("open", () => {
-			console.log("add_outgoing_connection: open", con)
-			this.add_connection(con)
-			this.send_profile_update(con)
-		})
-		con.on("close", () => {
-			console.warn("add_outgoing_connection: Connection closed")
-		})
-		con.on("error", (err) => {
-			console.error("add_outgoing_connection: error: ", err)
-		})
-		return con
-	}
-
-	// handle an incoming connection
-	this.add_incoming_connection = (con) => {
-		if (this.connections.has(con.peer)) { console.error("Already has connection with peer!"); return; }
-		console.log("add_incoming_connection", con._open, con)
-		con.profile_ready_cb = () => {
-			this.send_profile_update(con)
-		}
-		this.add_connection(con)
-		return con
-	}
-
-	// add a connection to the list of active connections
-	this.add_connection = (con) => {
-		// update the connections list(only one active connection per peer!)
-		if (this.connections.has(con.peer)) { console.warn("Already had a connection with",con.peer, ", closing old connection"); this.connections.get(con.peer).close(); }
-		this.connections.set(con.peer, con)
-		// hack needed because the on data function isn't used in an async way(can't process items out-of-order, handle_data is async)
-		con.data_buf = []
-		con.data_ready = true
-		con.on("data", async (data) => {
-			con.data_buf.push(data)
-		})
-		con.on("close", () => {
-			this.connections.delete(con.peer)
-			trigger_callback("connection_close", con)
-		})
-		con.on("error", () => {
-			con.close()
-			this.connections.delete(con.peer)
-			trigger_callback("connection_error", con)
-		})
-		trigger_callback("connection_add", con)
-		return con
-	}
-
-	// handle incoming connections
-	this.self_peer.on("connection", (con) => {
-		this.add_incoming_connection(con)	
-	})
 
 
 
@@ -279,8 +148,7 @@ function ThisThat() {
 		}
 		console.log("request_self_stream", stream_type)
 		if (stream_type == "audio") {
-			console.log("XXXXXXXXXX")
-			navigator.mediaDevices.getUserMedia({audio: true}).then(handle_stream).catch((err) => {console.log("MediaStream error", err); remove_stream();})
+			navigator.mediaDevices.getUserMedia({audio: true}).then(handle_stream).catch(remove_stream)
 		} else if (stream_type == "video") {
 			navigator.mediaDevices.getUserMedia({audio: true, video: true}).then(handle_stream).catch(remove_stream)
 		} else if (stream_type == "screen") {
@@ -296,6 +164,16 @@ function ThisThat() {
 		}
 	}
 
+	// connect to a remote peer for status updates and chat messages
+	this.connect_peer = (peer_id, open_cb) => {
+		if (this.connections.has(peer_id)) { console.warn("Already has connection with peer!"); return; }
+		this.crypto_lib.sign_envelope(this.self_profile_storage.data).then((profile_update_envelope) => {
+			console.log("Connecting to peer", peer_id, "signed:", profile_update_envelope)
+			this.add_connection(this.self_peer.connect(peer_id, { metadata: profile_update_envelope }), open_cb)
+		})
+		return 
+	}
+
 	// initiate a new call with a peer
 	this.call_peer = (peer_id, stream_type) => {
 		if (this.calls.has(peer_id)) { console.warn("Already has a call with peer!"); return; }
@@ -307,6 +185,72 @@ function ThisThat() {
 				this.add_call(call)		
 			})
 		})
+	}
+
+	// add a new connection to the list of active connections
+	this.add_connection = (con, open_cb, profile_update_envelope) => {
+		if (this.connections.has(con.peer)) { con.close(); return this.connections.get(con.peer); }
+		this.connections.set(con.peer, con)
+
+		// hack because we need to wait for a promise
+		con.data_ready = true
+		con.data_buf = []
+
+		con.on("data", (data) => {
+			if (con.data_ready) {
+				let recursive_handle_data = () => {
+					if (con.data_buf.length > 0) {
+						let buf = con.data_buf.shift()
+						this.handle_data(con, buf).then(recursive_handle_data)
+					} else {
+						con.data_ready = true
+					}
+				}
+				con.data_ready = false
+				recursive_handle_data()
+			} else {
+				// add to list of outstanding data buffers to handle
+				console.log("Queuing data",data)
+				con.data_buf.push(data)
+			}
+
+
+			// hack needed because this function isn't used in an async way(can't process items out-of-order, handle_data is async)
+			
+			if (con.data_ready) {
+				con.data_ready = false
+				// handle data asynchronously, so when new data arives while handle_data is still processing(unresolved),
+				// the new data is processed in-order instead of immediately.
+				this.handle_data(con, data).then(() => {
+					
+					for (let i=0; i<con.data_buf.length; i++) {
+						console.log("handle buffered data", con.data_buf[i])
+						this.handle_data(con, con.data_buf[i])
+					}
+					con.data_buf.length = 0
+					con.data_ready = true
+				})
+			} else {
+				
+				
+			}
+		})
+		con.on("close", () => {
+			this.connections.delete(con.peer)
+			trigger_callback("connection_close", con)
+		})
+		con.on("open", () => {
+			this.send_profile_update(con).then(() => {
+				if (open_cb) { open_cb(con) }
+			})
+		})
+		if (con._open) {
+			this.send_profile_update(con).then(() => {
+				if (open_cb) { open_cb(con) }
+			})
+		}
+		trigger_callback("connection", con)
+		return con
 	}
 
 	// add a call to the list of active calls
@@ -394,15 +338,32 @@ function ThisThat() {
 		trigger_callback("unmute_self")
 	}
 
+	// handle the self peer becoming ready
+	this.self_peer.on("open", (id) => {
+		localStorage.setItem("this_that_last_peer_id", id)
+		trigger_callback("open", id)
+	})
+
 	// handle incoming calls
 	this.self_peer.on("call", (call) => {
-		this.crypto_lib.verify_envelope(call.metadata).then((inner_json) => {
+		this.crypto_lib.verify_envelope(call.metadata, 5000).then((inner_json) => {
 			if (!inner_json) {console.error("Call has invalid signature in metadata!", call.metadata); return; }
 			this.add_call(call)
 			trigger_callback("call_incoming", call)
 		})
 	})
 
+	// handle incoming connections
+	this.self_peer.on("connection", (con) => {
+		this.crypto_lib.verify_envelope(con.metadata, 5000).then((middle_json) => {
+			if (!middle_json) {console.error("Connection has invalid signature in metadata!", call.metadata); return; }
+			con.profile = this.get_profile_storage(middle_json.public_key_hash)
+			this.add_incoming_connection(con)
+		})
+	})
 
+	this.self_peer.on("error", (err) => {
+		console.log("self_peer Error:", err)
+	})
 
 }

@@ -12,5 +12,4 @@ body, html {
 main {
 	flex-grow: 1;
 	margin: 5px 5px;
-	overflow: auto;
 }

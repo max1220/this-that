@@ -11,7 +11,7 @@
 	<body data-preferred-window-width="350" data-preferred-window-height="200">
 		<main>
 			<p>
-				Incoming call from <span class="call_remote_name"></span>
+				Incoming call from <span id="call_remote_name"></span>
 
 				<label>
 					<input type="radio" id="listen_only_radio" name="respond_option">
@@ -38,17 +38,15 @@
 		</nav>
 
 		<script src="window_manager_library/WindowClient.js"></script>
-		<script src="contacts_list.js"></script>
 		<script>
 			// get control over this window
 			let wm_client = new WindowClient(window.parent)
-
 			let this_that = window.parent.this_that
-
-			let name_for_id = (peer_id) => contacts_list[peer_id] ? contacts_list[peer_id].name : peer_id
-
+			let other_profile = undefined
+			let peer_id = () => other_profile.data.profile_data.peer_id
 			let call = undefined
 
+			// the answer button was pressed, answer call and show call window
 			function answer() {
 				let stream_type = "none"
 				if (audio_only_radio.checked) {
@@ -59,9 +57,11 @@
 					stream_type = "screen"
 				}
 				this_that.answer_call(call, stream_type)
-				wm_client.add_window("call.html", { peer_id: call.peer })
+				wm_client.add_window("call.html", { public_key_hash: other_profile.data.public_key_hash })
 				wm_client.close()
 			}
+
+			// hangup button was pressed
 			function hangup() {
 				call.close()
 				wm_client.close()
@@ -69,14 +69,16 @@
 
 			// handle the initial window arguments(init)
 			wm_client.callbacks.window_arg = (arg) => {
-				if (!arg.peer_id) { console.error("Need peer_id!"); return; }
-				call = window.parent.this_that.calls.get(arg.peer_id)
-				if (!call) { console.error("Need call!"); return; }
-
-				// update call partner name
-				let name = name_for_id(arg.peer_id)
-				document.querySelectorAll(".call_remote_name").forEach((e) => e.innerText = name)
+				if (!arg.public_key_hash) { console.error("Need public_key_hash!"); return; }
+				if (!this_that.has_profile_storage(arg.public_key_hash)) { console.error("No profile!"); return; }
+				other_profile = this_that.get_profile_storage(arg.public_key_hash, (other_profile_data) => {
+					document.title = "Incoming call - " + other_profile_data.profile_data.username
+					wm_client.set_title(document.title)	
+					call_remote_name.innerText = other_profile_data.profile_data.username
+					call = this_that.calls.get(other_profile_data.profile_data.peer_id)
+				})
 			}
+
 			wm_client.register_message_handler()
 		</script>
 	</body>

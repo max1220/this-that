@@ -27,13 +27,16 @@
 			max-width: 800px;
 			margin: 2em auto;
 		}
-		.self_peer_id_text {
+		.self_profile_name {
+			font-weight: bold;
+		}
+		.self_peer_id_text,.self_public_key_hash {
 			background-color: rgba(127,127,127,0.2);
 			border-radius: 4px;
 			padding: 2px;
 			user-select: text;
 		}
-
+		
 		/* Make this page automatically switch to darkmode if preferred */
 		@media (prefers-color-scheme: dark) {
 			:root {
@@ -49,7 +52,7 @@
 <body>
 	<!-- Container for the moveable windows(managed by javascript) -->
 	<div id="window_container"></div>
-
+	
 	<!-- Regular HTML content -->
 	<main>
 		<h1>This-That</h1>
@@ -58,15 +61,19 @@
 		</p>
 		<div class="center">
 			<button class="btn-lead" onclick="wm.add_window('contact_list.html')">Open Contacts</button>
+			<button class="btn-lead" onclick="wm.add_window('profile_self.html')">Open Your Profile</button>
 		</div>
 		<p>
-			Your current ID is: <span class="self_peer_id_text"></span>
+			You are logged in as <span class="self_profile_name">?</span>.<br>
+			Your peer ID is: <span class="self_peer_id_text">?</span><br>
+			Your public key hash is: <span class="self_public_key_hash">?</span>
 			<label>
 				<span>Notification sounds:</span>
 				<input type="checkbox" id="notification_sounds_ena">
 			</label>
+			<a class="invite_link" href="">Invite link</a>
 		</p>
-
+		
 		<h2>Your stream status:</h2>
 		<p>
 			<label>
@@ -88,7 +95,7 @@
 			<button id="unmute_self_btn" class="btn hidden" onclick="unmute_self()">Unmute self</button>
 			<button id="mute_self_btn" class="btn" onclick="mute_self()" disabled>Mute self</button>
 		</p>
-
+		
 		<h2>Minimized windows</h2>
 		<p>
 			Currently minimized windows(click to restore):
@@ -103,7 +110,7 @@
 			<button class="btn" onclick="window_style.href='window_manager_library/window_basic.css'">window_basic.css</button>
 		</details>
 	</main>
-
+	
 	<!-- Window template instanced by Javascript -->
 	<template id="window_template">
 		<div class="win" style="width: 350px; height: 200px;">
@@ -119,10 +126,12 @@
 			<div class="win-resize-handle"></div>
 		</div>
 	</template>
-
+	
 	<!-- Setup the window manager using Javascript -->
 	<script src="peerjs.min.js"></script>
 	<script src="/window_manager_library/WindowManager.js"></script>
+	<script src="SyncedLocalStorageObject.js"></script>
+	<script src="CryptoLib.js"></script>
 	<script src="this_that.js"></script>
 	<script>
 		// create a window manager
@@ -133,29 +142,28 @@
 			min_w: 200,
 			min_h: 100,
 		}
+		let crypto_lib = new CryptoLib()
 
 		stream_audio_checkbox.checked = false
 		stream_video_checkbox.checked = false
 		stream_screen_checkbox.checked = false
 		muted_checkbox.checked = false
 		mute_self_btn.disabled = true
-
+		
 		// handle invite URLs
-		document.location.search.split("&").forEach((e) => {
+		document.location.hash.slice(1).split("&").forEach((e) => {
 			let kv = e.split("=").map(decodeURIComponent)
-			if (kv[0] == "invite_from") {
-				wm.add_window("profile.html", { peer_id: kv[1] })
+			if (kv[0] == "invite") {
+				console.log("got invite link from:", kv[1])
+				wm.add_window("contact_add.html", { peer_id: kv[1] })
+				document.location.hash = ""
 			}
 		})
-
+		
 		// global this_that instance for accessing peers
 		// also used by some of the iframes
 		var this_that = new ThisThat()
-
-		// chat history. keys are peer ids, values are arrays of chat messages
-		// used by the chat windows to get chat logs
-		var CHAT_MESSAGES = {}
-
+		
 		function mute_self() {
 			this_that.mute_self()
 		}
@@ -166,36 +174,39 @@
 			if (!notification_sounds_ena.checked) { return; }
 			new Audio("notification_sound.wav").play()
 		}
-
-		// called when the self peer becomes ready. update self peer text
-		this_that.callbacks.open = (id) => {
+		
+		// called when the this_that context becomes ready for use
+		this_that.callbacks.ready = (id) => {
 			console.log("self got id:", id)
-			document.querySelectorAll(".self_peer_id_text").forEach((e) => e.innerText = id)
+			document.querySelectorAll(".self_peer_id_text").forEach((e) => e.innerText = this_that.self_profile_storage.data.peer_id)
+			document.querySelectorAll(".self_profile_name").forEach((e) => e.innerText = this_that.self_profile_storage.data.username)
+			document.querySelectorAll(".self_public_key_hash").forEach((e) => e.innerText = this_that.self_profile_storage.data.public_key_hash)
+			document.querySelectorAll(".invite_link").forEach((e) => e.href = "#invite=" + this_that.self_profile_storage.data.peer_id)
 			wm.broadcast({ event: "self_ready" })
 		}
-
+		
 		// called when the own audio gets muted
 		this_that.callbacks.mute_self = () => {
 			mute_self_btn.classList.add("hidden")
 			unmute_self_btn.classList.remove("hidden")
 			muted_checkbox.checked = true
 		}
-
+		
 		// called when the own audio gets unmuted
 		this_that.callbacks.unmute_self = () => {
 			mute_self_btn.classList.remove("hidden")
 			unmute_self_btn.classList.add("hidden")
 			muted_checkbox.checked = false
 		}
-
+		
 		// called when one of the own audio/video streams becomes unavailable
 		this_that.callbacks.self_stream_removed = (stream_arg) => {
 			console.log("app: self_stream_removed", stream_arg.stream_type)
 			let elem = document.querySelector("#stream_"+stream_arg.stream_type+"_checkbox")
 			elem.checked = false
-			wm.broadcast({ event: "self_stream_removed", arg: { stream_type: stream_type } })
+			wm.broadcast({ event: "self_stream_removed", arg: { stream_type: stream_arg.stream_type } })
 		}
-
+		
 		// called when one of the own audio/video streams becomes available
 		this_that.callbacks.self_stream_added = (stream_arg) => {
 			console.log("app: self_stream_added", stream_arg.stream_type)
@@ -204,35 +215,35 @@
 			elem.checked = true
 			wm.broadcast({ event: "self_stream_added", arg: { stream_type: stream_arg.stream_type } })
 		}
-
+		
+		// called when a valid profile update is received from a peer
+		this_that.callbacks.profile_update = (profile) => {
+			wm.broadcast({ event: "profile_update", arg: { from: profile.data.public_key_hash, profile_data: profile.data.profile_data } })
+		}
+		
 		// called when any chat message is received
 		this_that.callbacks.chat_message = (msg) => {
-			let from = msg.from.peer
-
-			// add to chat history
-			let messages = CHAT_MESSAGES[from] = CHAT_MESSAGES[from] || []
-			messages.push({ from: from, message: msg.arg })
-
+			let from = msg.from.profile.data.public_key_hash
 			// get list of chat windows
 			let chat_wins = wm.window_list.filter((win) => win.iframe.contentWindow.RECEIVE_CHAT_MESSAGE_FOR == from )
 			if (chat_wins.length == 0) {
 				// if no chat windows handle this peer, open a new chat window
-				wm.add_window("chat.html", { peer_id: from })
+				wm.add_window("chat.html", { public_key_hash: from })
 			} else {
 				// broadcast message to existing windows
 				wm.broadcast({ event: "chat_message", arg: { from: from, message: msg.arg } })
 			}
-
+			
 			// play a sound to the user
 			play_notification_sound()
 		}
-
+		
 		// called on new incoming calls
 		this_that.callbacks.call_incoming = (call) => {
 			// notify the windows, and create a new call window
-			wm.broadcast({ event: "call_incoming", arg: call.peer })
-			wm.add_window("call_incoming.html", { peer_id: call.peer })
-
+			wm.broadcast({ event: "call_incoming", arg: call.metadata.public_key_hash })
+			wm.add_window("call_incoming.html", { public_key_hash: call.metadata.public_key_hash })
+			
 			// play a sound to the user
 			play_notification_sound()
 		}
@@ -266,7 +277,7 @@
 			btn.remove()
 			minimized_windows.delete(win)
 		}
-
+		
 		// hide the HTML content scrollbars if a window is maximized
 		wm.callbacks.wm_has_maximized = (has_maximized) => {
 			if (has_maximized) {

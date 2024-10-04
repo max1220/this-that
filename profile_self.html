@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="icon" type="image/x-icon" href="this_that_favicon.ico">
+		<title>Your profile</title>
+		<link rel="stylesheet" href="window.css">
+		<link rel="stylesheet" href="common.css">
+		<style>
+			#public_key_hash_text {
+				overflow-x: scroll;
+			}
+		</style>
+	</head>
+	<body data-preferred-window-width="350" data-preferred-window-height="400">
+		<main>
+			<h3>Keys</h3>
+			<div class="form">
+				<label>
+					<span>Public key hash:</span>
+					<input type="text" id="public_key_hash_input">
+				</label>
+				<label>
+					<span>Public key:</span>
+					<input type="text" id="public_key_input">
+				</label>
+				<label>
+					<span>Private key:</span>
+					<input type="text" id="private_key_input">
+				</label>
+				<button class="btn-small" onclick="export_own_keys()">export own keys</button>
+				<button class="btn-small" onclick="import_own_keys()">import own keys</button>
+			</div>
+			<h3>Own profile</h3>
+			<div class="form">
+				<label>
+					<span>Username:</span>
+					<input type="text" id="profile_name_input">
+				</label>
+			</div>
+			<label>
+				<span>Profile content:</span>
+				<div id="profile_content" contenteditable>
+					<p>You can edit this profile text.</p>
+				</div>
+			</label>
+			<button class="btn-small" onclick="update_self_profile()">Update profile</button>
+		</main>
+		<script src="window_manager_library/WindowClient.js"></script>
+		<script src="DOMPurify/dist/purify.min.js"></script>
+		<script src="SyncedLocalStorageObject.js"></script>
+		<script src="CryptoLib.js"></script>
+		<script>
+			// get control over this window
+			let wm_client = new WindowClient(window.parent)
+			let this_that = window.parent.this_that
+
+			// export own signature keys to input values(public and private!)
+			function export_own_keys() {
+				window.public_key_input.value = JSON.stringify(this_that.signature_keys.public_key_jwk)
+				window.private_key_input.value = JSON.stringify(this_that.signature_keys.private_key_jwk)
+			}
+
+			// import own private/public signature keys
+			function import_own_keys() {
+				let public_key_jwk = JSON.parse(window.public_key_input.value)
+				let private_key_jwk = JSON.parse(window.private_key_input.value)
+				this_that.crypto_lib.import_own_signature_keys(private_key_jwk, public_key_jwk)
+				// TODO: Probably need a global page reload here?
+			}
+
+			// get the initial values for the username and content
+			window.profile_name_input.value = this_that.self_profile_storage.data.username
+			window.public_key_hash_input.value = this_that.self_profile_storage.data.public_key_hash
+			window.profile_content.innerHTML = DOMPurify.sanitize(this_that.self_profile_storage.data.content)
+
+			// update profile button was pressed, update the profile values
+			function update_self_profile() {
+				this_that.self_profile_storage.data.username = window.profile_name_input.value
+				this_that.self_profile_storage.data.content = DOMPurify.sanitize(window.profile_content.innerHTML)
+				this_that.self_profile_storage.update()
+				this_that.broadcast_profile_update()
+			}
+			
+
+			wm_client.register_message_handler()
+
+		</script>
+	</body>
+</html>
